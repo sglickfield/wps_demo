@@ -27,6 +27,9 @@ export function DashboardPage() {
         subtitle="Work queue for open cases, pending rater forms, and recent reports."
         actions={
           <>
+            <Link to="/session-analytics">
+              <Button variant="secondary">Session analytics</Button>
+            </Link>
             <Link to="/clients/new">
               <Button variant="secondary">New client</Button>
             </Link>
@@ -51,6 +54,36 @@ export function DashboardPage() {
           <div className="value">{ready.length}</div>
         </Card>
       </div>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <h2 style={{ fontSize: "1.05rem", margin: 0 }}>
+              Recording analytics (browser)
+            </h2>
+            <p className="muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
+              Language-sample analytics are tied to a specific client record.
+              Demo seed includes a weekend narrative for Maya Rivera.
+            </p>
+          </div>
+          <div className="row-actions">
+            <Link to="/session-analytics?clientId=cli-maya">
+              <Button>Maya — session analytics</Button>
+            </Link>
+            <Link to="/session-analytics">
+              <Button variant="secondary">Choose client</Button>
+            </Link>
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <h2 style={{ fontSize: "1.15rem" }}>Needs attention</h2>

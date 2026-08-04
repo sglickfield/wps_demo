@@ -106,3 +106,33 @@ export interface FormSection {
   title: string;
   items: { id: string; text: string; scale: string[] }[];
 }
+
+/** Saved browser-side language-sample / session recording analysis for a client. */
+export type SessionRecordingMode = "demo" | "live" | "upload";
+
+export interface SessionRecordingTurn {
+  id: string;
+  speaker: "therapist" | "client";
+  text: string;
+  startSec: number;
+  endSec: number;
+}
+
+export interface SessionRecording {
+  id: string;
+  clientId: string;
+  title: string;
+  mode: SessionRecordingMode;
+  createdAt: string;
+  durationSec: number;
+  engagementScore: number;
+  clientTalkRatio: number;
+  clientWordCount: number;
+  clientUniqueWords: number;
+  typeTokenRatio: number;
+  meanUtteranceLength: number;
+  narrative: string;
+  highlights: string[];
+  recommendations: string[];
+  turns: SessionRecordingTurn[];
+}

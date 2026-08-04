@@ -14,6 +14,7 @@ export function ClientHomePage() {
     getClient,
     casesForClient,
     reportsForClient,
+    sessionsForClient,
   } = useStore();
   const client = id ? getClient(id) : undefined;
 
@@ -28,6 +29,7 @@ export function ClientHomePage() {
 
   const cases = casesForClient(client.id);
   const reports = reportsForClient(client.id);
+  const sessions = sessionsForClient(client.id);
 
   return (
     <>
@@ -37,9 +39,14 @@ export function ClientHomePage() {
           client.mrn ? ` · ${client.mrn}` : ""
         }`}
         actions={
-          <Link to={`/cases/new?clientId=${client.id}`}>
-            <Button>New case</Button>
-          </Link>
+          <>
+            <Link to={`/session-analytics?clientId=${client.id}`}>
+              <Button variant="secondary">Session analytics</Button>
+            </Link>
+            <Link to={`/cases/new?clientId=${client.id}`}>
+              <Button>New case</Button>
+            </Link>
+          </>
         }
       />
 
@@ -62,7 +69,8 @@ export function ClientHomePage() {
           <h2 style={{ fontSize: "1.1rem" }}>At a glance</h2>
           <p style={{ margin: 0 }}>
             <strong>{cases.length}</strong> case(s) ·{" "}
-            <strong>{reports.length}</strong> report(s)
+            <strong>{reports.length}</strong> report(s) ·{" "}
+            <strong>{sessions.length}</strong> session recording(s)
           </p>
           <p className="faint" style={{ marginTop: 8 }}>
             Record created {formatDate(client.createdAt)}
@@ -114,6 +122,89 @@ export function ClientHomePage() {
                 <tr>
                   <td colSpan={4} className="muted">
                     No cases yet. Start the first administration for this client.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>
+            Session recordings
+          </h2>
+          <Link to={`/session-analytics?clientId=${client.id}`}>
+            <Button variant="secondary">Analyze session</Button>
+          </Link>
+        </div>
+        <p className="muted" style={{ fontSize: 14, marginTop: 0 }}>
+          Browser language-sample analytics (Therapist / Client diarization,
+          vocabulary &amp; engagement) linked to this examinee.
+        </p>
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Session</th>
+                <th>Engagement</th>
+                <th>Client vocab</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sessions.map((s) => (
+                <tr key={s.id}>
+                  <td>
+                    <TextLink
+                      to={`/session-analytics?clientId=${client.id}&sessionId=${s.id}`}
+                    >
+                      {s.title}
+                    </TextLink>
+                    <div className="faint">
+                      {s.mode === "demo"
+                        ? "Demo sample"
+                        : s.mode === "live"
+                          ? "Live mic"
+                          : "Upload"}{" "}
+                      · {s.durationSec.toFixed(0)}s
+                    </div>
+                  </td>
+                  <td>
+                    <Badge
+                      tone={
+                        s.engagementScore >= 80
+                          ? "success"
+                          : s.engagementScore >= 60
+                            ? "info"
+                            : "warning"
+                      }
+                    >
+                      {s.engagementScore}/100
+                    </Badge>
+                  </td>
+                  <td>
+                    {s.clientWordCount} words · TTR{" "}
+                    {s.typeTokenRatio.toFixed(2)} · MLU{" "}
+                    {s.meanUtteranceLength.toFixed(1)}
+                  </td>
+                  <td>{formatDate(s.createdAt)}</td>
+                </tr>
+              ))}
+              {!sessions.length ? (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    No session recordings yet. Run analytics for this client.
                   </td>
                 </tr>
               ) : null}

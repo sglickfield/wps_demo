@@ -26,6 +26,9 @@ export function ClinicianLayout() {
           <NavLink className="nav-link" to="/assessments">
             Library
           </NavLink>
+          <NavLink className="nav-link" to="/session-analytics">
+            Session analytics
+          </NavLink>
         </nav>
         <div className="sidebar-footer">
           <div style={{ marginBottom: 8 }}>

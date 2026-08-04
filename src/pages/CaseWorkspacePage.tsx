@@ -113,6 +113,15 @@ export function CaseWorkspacePage() {
             forms are completed, score the case to generate mock reports — same
             loop as online evaluation platforms.
           </p>
+          <p style={{ margin: "10px 0 0" }}>
+            <TextLink to={`/session-analytics?clientId=${client.id}`}>
+              Session recording analytics
+            </TextLink>
+            <span className="faint">
+              {" "}
+              — language samples for {client.name} (Therapist / Client)
+            </span>
+          </p>
         </Card>
       </div>
 

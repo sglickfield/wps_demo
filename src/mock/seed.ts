@@ -4,7 +4,10 @@ import type {
   Clinician,
   FormAssignment,
   Report,
+  SessionRecording,
 } from "../types";
+import { SAMPLE_SESSION_META, SAMPLE_TRANSCRIPT } from "./sampleSession";
+import { analyzeSession } from "../lib/sessionAnalytics";
 
 export const CLINICIAN: Clinician = {
   id: "clin-1",
@@ -27,6 +30,7 @@ export function createSeed(): {
   cases: CaseRecord[];
   forms: FormAssignment[];
   reports: Report[];
+  sessionRecordings: SessionRecording[];
 } {
   const clients: Client[] = [
     {
@@ -340,5 +344,37 @@ export function createSeed(): {
     },
   ];
 
-  return { clients, cases, forms, reports };
+  // Demo language-sample session tied to Maya Rivera
+  const demoAnalysis = analyzeSession(
+    SAMPLE_TRANSCRIPT,
+    SAMPLE_SESSION_META.durationSec
+  );
+  const sessionRecordings: SessionRecording[] = [
+    {
+      id: "sess-maya-weekend",
+      clientId: "cli-maya",
+      title: SAMPLE_SESSION_META.title,
+      mode: "demo",
+      createdAt: daysAgo(1),
+      durationSec: demoAnalysis.durationSec,
+      engagementScore: demoAnalysis.engagement.engagementScore,
+      clientTalkRatio: demoAnalysis.engagement.clientTalkRatio,
+      clientWordCount: demoAnalysis.client.totalWords,
+      clientUniqueWords: demoAnalysis.client.uniqueWords,
+      typeTokenRatio: demoAnalysis.client.typeTokenRatio,
+      meanUtteranceLength: demoAnalysis.client.meanUtteranceLength,
+      narrative: demoAnalysis.engagement.narrative,
+      highlights: demoAnalysis.engagement.highlights,
+      recommendations: demoAnalysis.engagement.recommendations,
+      turns: demoAnalysis.turns.map((t) => ({
+        id: t.id,
+        speaker: t.speaker,
+        text: t.text,
+        startSec: t.startSec,
+        endSec: t.endSec,
+      })),
+    },
+  ];
+
+  return { clients, cases, forms, reports, sessionRecordings };
 }

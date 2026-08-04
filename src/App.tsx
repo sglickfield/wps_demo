@@ -17,6 +17,7 @@ import {
   RaterLandingPage,
 } from "./pages/RaterPages";
 import { ReportPage } from "./pages/ReportPage";
+import { RecordingAnalyticsPage } from "./pages/RecordingAnalyticsPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { session } = useStore();
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="reports/:id" element={<ReportPage />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="assessments" element={<LibraryPage />} />
+        <Route path="session-analytics" element={<RecordingAnalyticsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

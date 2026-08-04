@@ -15,9 +15,12 @@ import type {
   Report,
   RaterRole,
   DeliveryMethod,
+  SessionRecording,
+  SessionRecordingMode,
 } from "../types";
 import { CATALOG, getProduct } from "./catalog";
 import { CLINICIAN, DEMO_PASSWORD, createSeed } from "./seed";
+import type { SessionAnalysis } from "../lib/sessionAnalytics";
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -44,6 +47,7 @@ interface StoreState {
   cases: CaseRecord[];
   forms: FormAssignment[];
   reports: Report[];
+  sessionRecordings: SessionRecording[];
   session: { clinicianId: string } | null;
   lastInviteLink: string | null;
 }
@@ -79,6 +83,14 @@ interface StoreApi extends StoreState {
   ) => Promise<void>;
   scoreCase: (caseId: string) => Promise<Report[]>;
   closeCase: (caseId: string) => Promise<void>;
+  saveSessionRecording: (input: {
+    clientId: string;
+    title: string;
+    mode: SessionRecordingMode;
+    analysis: SessionAnalysis;
+  }) => Promise<SessionRecording>;
+  getSessionRecording: (id: string) => SessionRecording | undefined;
+  sessionsForClient: (clientId: string) => SessionRecording[];
   getClient: (id: string) => Client | undefined;
   getCase: (id: string) => CaseRecord | undefined;
   getForm: (id: string) => FormAssignment | undefined;
@@ -97,6 +109,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [cases, setCases] = useState(seed.cases);
   const [forms, setForms] = useState(seed.forms);
   const [reports, setReports] = useState(seed.reports);
+  const [sessionRecordings, setSessionRecordings] = useState(
+    seed.sessionRecordings
+  );
   const [session, setSession] = useState<StoreState["session"]>(() => {
     try {
       return localStorage.getItem("wps_demo_session")
@@ -132,6 +147,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCases(s.cases);
     setForms(s.forms);
     setReports(s.reports);
+    setSessionRecordings(s.sessionRecordings);
     setLastInviteLink(null);
   }, []);
 
@@ -385,12 +401,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const saveSessionRecording = useCallback(
+    async (input: {
+      clientId: string;
+      title: string;
+      mode: SessionRecordingMode;
+      analysis: SessionAnalysis;
+    }) => {
+      await delay(200);
+      const { analysis } = input;
+      const rec: SessionRecording = {
+        id: uid("sess"),
+        clientId: input.clientId,
+        title: input.title,
+        mode: input.mode,
+        createdAt: new Date().toISOString(),
+        durationSec: analysis.durationSec,
+        engagementScore: analysis.engagement.engagementScore,
+        clientTalkRatio: analysis.engagement.clientTalkRatio,
+        clientWordCount: analysis.client.totalWords,
+        clientUniqueWords: analysis.client.uniqueWords,
+        typeTokenRatio: analysis.client.typeTokenRatio,
+        meanUtteranceLength: analysis.client.meanUtteranceLength,
+        narrative: analysis.engagement.narrative,
+        highlights: analysis.engagement.highlights,
+        recommendations: analysis.engagement.recommendations,
+        turns: analysis.turns.map((t) => ({
+          id: t.id,
+          speaker: t.speaker,
+          text: t.text,
+          startSec: t.startSec,
+          endSec: t.endSec,
+        })),
+      };
+      setSessionRecordings((prev) => [rec, ...prev]);
+      return rec;
+    },
+    []
+  );
+
   const api: StoreApi = useMemo(
     () => ({
       clients,
       cases,
       forms,
       reports,
+      sessionRecordings,
       session,
       lastInviteLink,
       clinician: CLINICIAN,
@@ -405,6 +461,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       completeForm,
       scoreCase,
       closeCase,
+      saveSessionRecording,
+      getSessionRecording: (id) => sessionRecordings.find((s) => s.id === id),
+      sessionsForClient: (clientId) =>
+        sessionRecordings
+          .filter((s) => s.clientId === clientId)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       getClient: (id) => clients.find((c) => c.id === id),
       getCase: (id) => cases.find((c) => c.id === id),
       getForm: (id) => forms.find((f) => f.id === id),
@@ -428,6 +490,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cases,
       forms,
       reports,
+      sessionRecordings,
       session,
       lastInviteLink,
       login,
@@ -441,6 +504,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       completeForm,
       scoreCase,
       closeCase,
+      saveSessionRecording,
     ]
   );
 
