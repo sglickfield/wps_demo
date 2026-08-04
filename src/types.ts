@@ -20,7 +20,7 @@ export type RaterRole =
   | "self"
   | "clinician";
 
-export type ReportType = "score" | "rater_summary" | "progress_comparison";
+export type ReportType = "score" | "progress_comparison";
 
 export interface Clinician {
   id: string;
@@ -108,7 +108,7 @@ export interface FormSection {
 }
 
 /** Saved browser-side language-sample / session recording analysis for a client. */
-export type SessionRecordingMode = "demo" | "live" | "upload";
+export type SessionRecordingMode = "demo";
 
 export interface SessionRecordingTurn {
   id: string;

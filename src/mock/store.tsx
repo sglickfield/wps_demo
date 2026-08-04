@@ -58,7 +58,6 @@ interface StoreApi extends StoreState {
   logout: () => void;
   resetDemo: () => void;
   createClient: (input: Omit<Client, "id" | "createdAt">) => Promise<Client>;
-  updateClient: (id: string, patch: Partial<Client>) => Promise<void>;
   createCase: (input: {
     clientId: string;
     title: string;
@@ -164,13 +163,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     []
   );
-
-  const updateClient = useCallback(async (id: string, patch: Partial<Client>) => {
-    await delay(200);
-    setClients((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...patch } : c))
-    );
-  }, []);
 
   const createCase = useCallback(
     async (input: {
@@ -465,7 +457,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       logout,
       resetDemo,
       createClient,
-      updateClient,
       createCase,
       sendInvite,
       saveFormProgress,
@@ -508,7 +499,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       logout,
       resetDemo,
       createClient,
-      updateClient,
       createCase,
       sendInvite,
       saveFormProgress,

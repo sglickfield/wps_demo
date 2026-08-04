@@ -7,7 +7,6 @@ import {
   formatDate,
 } from "../lib/format";
 import { sampleTypeLabel } from "../lib/sessionAnalytics";
-import { CLIENT_VOICES, THERAPIST_VOICE } from "../mock/sessionLibrary";
 import { useStore } from "../mock/store";
 
 export function ClientHomePage() {
@@ -41,14 +40,9 @@ export function ClientHomePage() {
           client.mrn ? ` · ${client.mrn}` : ""
         }`}
         actions={
-          <>
-            <Link to={`/session-analytics?clientId=${client.id}`}>
-              <Button variant="secondary">Session analytics</Button>
-            </Link>
-            <Link to={`/cases/new?clientId=${client.id}`}>
-              <Button>New case</Button>
-            </Link>
-          </>
+          <Link to={`/cases/new?clientId=${client.id}`}>
+            <Button>New case</Button>
+          </Link>
         }
       />
 
@@ -81,15 +75,8 @@ export function ClientHomePage() {
       </div>
 
       <Card>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Cases</h2>
+        <div className="section-head">
+          <h2 className="section-title">Cases</h2>
           <Link to={`/cases/new?clientId=${client.id}`}>
             <Button variant="secondary">New case</Button>
           </Link>
@@ -133,29 +120,18 @@ export function ClientHomePage() {
       </Card>
 
       <Card>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-            gap: 8,
-            flexWrap: "wrap",
-          }}
-        >
-          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>
-            Session recordings
-          </h2>
+        <div className="section-head">
+          <div>
+            <h2 className="section-title">Language samples</h2>
+            <p className="muted section-sub">
+              Browser language-sample review for this client (therapist / client
+              diarization).
+            </p>
+          </div>
           <Link to={`/session-analytics?clientId=${client.id}`}>
-            <Button variant="secondary">Analyze session</Button>
+            <Button variant="secondary">Open samples</Button>
           </Link>
         </div>
-        <p className="muted" style={{ fontSize: 14, marginTop: 0 }}>
-          Language samples for <strong>{client.name}</strong> only. Therapist
-          voice: {THERAPIST_VOICE}. Client voice:{" "}
-          {CLIENT_VOICES[client.id] ?? "—"}. Metrics align with this client&apos;s
-          rating profile (distinct from other examinees).
-        </p>
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -163,7 +139,7 @@ export function ClientHomePage() {
                 <th>Session</th>
                 <th>Type</th>
                 <th>Engagement</th>
-                <th>TNW / NDW / MLU</th>
+                <th>Vocabulary</th>
                 <th>Contingency</th>
                 <th>Date</th>
               </tr>
@@ -177,12 +153,7 @@ export function ClientHomePage() {
                     >
                       {s.title}
                     </TextLink>
-                    <div className="faint">
-                      {s.durationSec.toFixed(0)}s
-                      {s.perseverationLevel !== "none"
-                        ? ` · perseveration ${s.perseverationLevel}`
-                        : ""}
-                    </div>
+                    <div className="faint">{s.durationSec.toFixed(0)}s</div>
                   </td>
                   <td>
                     <Badge tone="info">
@@ -202,18 +173,14 @@ export function ClientHomePage() {
                       {s.engagementScore}/100
                     </Badge>
                   </td>
-                  <td>
-                    TNW {s.clientWordCount} · NDW {s.clientUniqueWords} · MLU{" "}
+                  <td className="faint" style={{ fontSize: 13 }}>
+                    {s.clientWordCount} words · NDW {s.clientUniqueWords} · MLU{" "}
                     {s.meanUtteranceLength.toFixed(1)}
                   </td>
-                  <td>
+                  <td className="faint" style={{ fontSize: 13 }}>
                     {s.contingentQuestions
-                      ? `${s.contingentResponses}/${s.contingentQuestions}`
+                      ? `${s.contingentResponses}/${s.contingentQuestions} responses`
                       : "—"}
-                    <div className="faint">
-                      init {Math.round(s.initiativeRatio * 100)}% · lat{" "}
-                      {s.meanResponseLatencySec.toFixed(2)}s
-                    </div>
                   </td>
                   <td>{formatDate(s.createdAt)}</td>
                 </tr>
@@ -221,7 +188,7 @@ export function ClientHomePage() {
               {!sessions.length ? (
                 <tr>
                   <td colSpan={6} className="muted">
-                    No session recordings yet. Run analytics for this client.
+                    No language samples yet.
                   </td>
                 </tr>
               ) : null}

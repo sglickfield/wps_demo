@@ -8,8 +8,6 @@
 import type { LanguageSampleType } from "../lib/sessionAnalytics";
 import type { TranscriptTurn } from "./sampleSession";
 
-export type SessionMode = "demo";
-
 export interface SessionDef {
   id: string;
   clientId: string;

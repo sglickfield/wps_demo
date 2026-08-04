@@ -157,16 +157,3 @@ export function labelSpurtsAlternating(
     return row;
   });
 }
-
-export function speakingTimeFromLabels(
-  labels: { startSec: number; endSec: number; speaker: "therapist" | "client" }[]
-): { therapist: number; client: number } {
-  let therapist = 0;
-  let client = 0;
-  for (const l of labels) {
-    const d = Math.max(0, l.endSec - l.startSec);
-    if (l.speaker === "therapist") therapist += d;
-    else client += d;
-  }
-  return { therapist, client };
-}

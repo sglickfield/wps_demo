@@ -105,22 +105,18 @@ export function CaseWorkspacePage() {
           </p>
         </Card>
         <Card>
-          <h3 style={{ fontSize: "0.95rem", fontFamily: "var(--font)" }}>
-            Workflow tip
+          <h3 className="section-title" style={{ fontSize: "0.95rem" }}>
+            Next steps
           </h3>
           <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-            Share each form to a rater (or complete on-screen). When all required
-            forms are completed, score the case to generate mock reports — same
-            loop as online evaluation platforms.
+            Share forms to raters or complete on-screen. When forms are done,
+            score the case for mock reports.
           </p>
-          <p style={{ margin: "10px 0 0" }}>
+          <p style={{ margin: "10px 0 0", fontSize: 14 }}>
             <TextLink to={`/session-analytics?clientId=${client.id}`}>
-              Session recording analytics
+              Language samples
             </TextLink>
-            <span className="faint">
-              {" "}
-              — language samples for {client.name} (Therapist / Client)
-            </span>
+            <span className="faint"> for {client.name}</span>
           </p>
         </Card>
       </div>

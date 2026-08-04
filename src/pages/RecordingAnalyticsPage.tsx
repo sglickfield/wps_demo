@@ -15,8 +15,6 @@ import {
 } from "../lib/sessionAnalytics";
 import type { SpeakerRole, TranscriptTurn } from "../mock/sampleSession";
 import {
-  CLIENT_VOICES,
-  THERAPIST_VOICE,
   audioUrlFor,
   getSessionDef,
   sessionsForClientDef,
@@ -53,13 +51,6 @@ function Waveform({
   const w = 640;
   const h = 88;
   const mid = h / 2;
-  const pts = waveform
-    .map((v, i) => {
-      const x = (i / Math.max(1, waveform.length - 1)) * w;
-      const amp = v * (mid - 4);
-      return `${x},${mid - amp} ${x},${mid + amp}`;
-    })
-    .join(" ");
 
   return (
     <svg
@@ -119,9 +110,6 @@ function Waveform({
           strokeWidth={2}
         />
       ) : null}
-      <text x={8} y={h - 8} fontSize={10} fill="#8b97a8">
-        {pts ? "" : ""}
-      </text>
     </svg>
   );
 }
@@ -377,8 +365,8 @@ export function RecordingAnalyticsPage() {
     return (
       <>
         <PageHeader
-          title="Session recording analytics"
-          subtitle="Choose a client record. Every language-sample analysis is stored on that client."
+          title="Language samples"
+          subtitle="Select a client to review their language-sample sessions."
           actions={
             <Link to="/clients">
               <Button variant="secondary">All clients</Button>
@@ -386,11 +374,6 @@ export function RecordingAnalyticsPage() {
           }
         />
         <Card>
-          <h2 style={{ fontSize: "1.1rem" }}>Select client</h2>
-          <p className="muted" style={{ fontSize: 14 }}>
-            Session analytics must be tied to an examinee. Pick a client to open
-            their language-sample workspace.
-          </p>
           <Field label="Client">
             <select
               value={pickerId}
@@ -411,11 +394,8 @@ export function RecordingAnalyticsPage() {
                 navigate(`/session-analytics?clientId=${pickerId}`)
               }
             >
-              Open client session analytics
+              Continue
             </Button>
-            <Link to="/clients/new">
-              <Button variant="secondary">New client</Button>
-            </Link>
           </div>
         </Card>
       </>
@@ -426,115 +406,119 @@ export function RecordingAnalyticsPage() {
     return (
       <Card>
         <p>Client not found.</p>
-        <TextLink to="/session-analytics">Choose another client</TextLink>
+        <TextLink to="/clients">Back to clients</TextLink>
       </Card>
     );
   }
 
-  const clientVoice = CLIENT_VOICES[client.id] ?? "Client voice";
   const sampleDefs = sessionsForClientDef(client.id);
   const clientSessionHistory = sessionsForClient(client.id);
+  const activeSampleType =
+    analysis?.sampleType ?? savedRec?.sampleType;
+  const durationLabel = (
+    profile?.durationSec ??
+    analysis?.durationSec ??
+    0
+  ).toFixed(0);
 
   return (
     <>
       <PageHeader
-        title="Session recording analytics"
-        subtitle={`${client.name} · ${ageFromDob(client.dob)} yrs · language-sample review (Therapist vs Client)`}
+        title="Language samples"
+        subtitle={`${client.name} · ${ageFromDob(client.dob)} yrs${
+          client.mrn ? ` · ${client.mrn}` : ""
+        }`}
         actions={
-          <>
-            <Link to={`/clients/${client.id}`}>
-              <Button variant="secondary">Client home</Button>
-            </Link>
-            <Link to="/session-analytics">
-              <Button variant="ghost">Switch client</Button>
-            </Link>
-          </>
+          <Link to={`/clients/${client.id}`}>
+            <Button variant="secondary">Client home</Button>
+          </Link>
         }
       />
 
       <Card>
-        <div>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: 6 }}>
-            {client.name} — voice sessions only
-          </h2>
-          <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-            This page lists <strong>only</strong> recordings for{" "}
-            <strong>{client.name}</strong>
-            {client.mrn ? ` (${client.mrn})` : ""}. Voices: therapist{" "}
-            <strong>{THERAPIST_VOICE}</strong>, client{" "}
-            <strong>{clientVoice}</strong> (unique to this examinee).
-          </p>
-          {client.notes ? (
-            <p className="faint" style={{ margin: "8px 0 0" }}>
-              Chart note: {client.notes}
+        <div className="section-head">
+          <div>
+            <h2 className="section-title">Sessions</h2>
+            <p className="muted section-sub">
+              Therapist / client language samples for this examinee. Open a
+              session to play audio and review metrics.
             </p>
-          ) : null}
+          </div>
         </div>
-
-        <div className="stack" style={{ marginTop: 12 }}>
-          <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-            Sample language recordings for <strong>{client.name}</strong> only
-            (voice <strong>{clientVoice}</strong>). Content and metrics align
-            with this client&apos;s rating profile.
-          </p>
-          <div
-            className="row-actions"
-            style={{ flexDirection: "column", alignItems: "stretch" }}
-          >
-            {sampleDefs.map((def) => (
-              <div
+        {client.notes ? (
+          <p className="chart-note">{client.notes}</p>
+        ) : null}
+        <ul className="session-list">
+          {sampleDefs.map((def) => {
+            const saved = clientSessionHistory.find((s) => s.id === def.id);
+            const isActive = sessionIdParam === def.id;
+            return (
+              <li
                 key={def.id}
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 0",
-                  borderBottom: "1px solid var(--border)",
-                }}
+                className={`session-list-item${isActive ? " active" : ""}`}
               >
-                <div>
-                  <strong style={{ fontSize: 14 }}>{def.title}</strong>
-                  <div className="faint">
-                    <Badge tone="info">{sampleTypeLabel(def.sampleType)}</Badge>{" "}
-                    {def.profileNote}
+                <div className="session-list-main">
+                  <div className="session-list-title-row">
+                    <strong>{def.title}</strong>
+                    <Badge tone="info">
+                      {sampleTypeLabel(def.sampleType)}
+                    </Badge>
+                    {saved ? (
+                      <Badge
+                        tone={
+                          saved.engagementScore >= 80
+                            ? "success"
+                            : saved.engagementScore >= 60
+                              ? "info"
+                              : "warning"
+                        }
+                      >
+                        {saved.engagementScore}/100
+                      </Badge>
+                    ) : null}
                   </div>
+                  {saved ? (
+                    <p className="faint session-list-meta">
+                      {saved.clientWordCount} words · NDW{" "}
+                      {saved.clientUniqueWords} · MLU{" "}
+                      {saved.meanUtteranceLength.toFixed(1)} · contingency{" "}
+                      {saved.contingentQuestions
+                        ? `${saved.contingentResponses}/${saved.contingentQuestions}`
+                        : "—"}
+                    </p>
+                  ) : (
+                    <p className="faint session-list-meta">{def.profileNote}</p>
+                  )}
                 </div>
                 <Button
-                  variant="secondary"
+                  variant={isActive ? "primary" : "secondary"}
                   onClick={() => loadClientSample(def.id)}
                   disabled={phase === "loading" || phase === "analyzing"}
                 >
-                  Open
+                  {phase === "loading" && !isActive
+                    ? "Loading…"
+                    : isActive
+                      ? "Viewing"
+                      : "Open"}
                 </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {error ? (
-          <p style={{ color: "var(--danger)", marginTop: 12, marginBottom: 0 }}>
-            {error}
-          </p>
-        ) : null}
+              </li>
+            );
+          })}
+        </ul>
+        {error ? <p className="form-error">{error}</p> : null}
       </Card>
 
       {audioUrl || profile ? (
         <Card>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              marginBottom: 10,
-            }}
-          >
-            <h2 style={{ fontSize: "1.05rem", margin: 0 }}>Recording</h2>
-            <div className="row-actions">
-              <span className="legend-swatch therapist" /> Therapist
-              <span className="legend-swatch client" /> Client
+          <div className="section-head">
+            <h2 className="section-title">Recording</h2>
+            <div className="legend">
+              <span>
+                <i className="legend-swatch therapist" /> Therapist
+              </span>
+              <span>
+                <i className="legend-swatch client" /> Client
+              </span>
             </div>
           </div>
           {profile ? (
@@ -550,50 +534,35 @@ export function RecordingAnalyticsPage() {
               ref={audioRef}
               src={audioUrl}
               controls
-              style={{ width: "100%", marginTop: 12 }}
+              className="session-audio"
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
             />
           ) : null}
-          <p className="faint" style={{ marginTop: 8, marginBottom: 0 }}>
-            Duration{" "}
-            {(profile?.durationSec ?? analysis?.durationSec ?? 0).toFixed(1)}s
-            {` · Client: ${client.name} · Voices: ${THERAPIST_VOICE} / ${
-              savedRec?.clientVoice ?? clientVoice
-            }`}
-            {phase === "analyzing" ? " · Running analytics…" : null}
-            {saving ? " · Saving to client record…" : null}
-            {savedRec && !saving ? ` · Session ${savedRec.id}` : null}
+          <p className="faint session-meta-line">
+            {durationLabel}s
+            {activeSampleType
+              ? ` · ${sampleTypeLabel(activeSampleType)}`
+              : ""}
+            {phase === "analyzing" || saving ? " · Updating…" : ""}
           </p>
-          {savedRec?.profileNote ? (
-            <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
-              Profile alignment: {savedRec.profileNote}
-            </p>
-          ) : null}
         </Card>
       ) : null}
 
       {turns.length > 0 ? (
         <Card>
-          <h2 style={{ fontSize: "1.05rem" }}>Diarized transcript</h2>
-          <p className="muted" style={{ fontSize: 14 }}>
-            Speaker roles fixed as Therapist and Client for WPS-style language
-            sample review.
-          </p>
+          <h2 className="section-title">Transcript</h2>
           <div className="transcript-list">
             {turns.map((t) => (
-              <div
-                key={t.id}
-                className={`transcript-turn ${t.speaker}`}
-              >
+              <div key={t.id} className={`transcript-turn ${t.speaker}`}>
                 <div className="transcript-meta">
                   <Badge tone={t.speaker === "therapist" ? "info" : "success"}>
                     {t.speaker === "therapist" ? "Therapist" : "Client"}
                   </Badge>
                   <span className="faint">
-                    {t.startSec.toFixed(1)}s – {t.endSec.toFixed(1)}s
+                    {t.startSec.toFixed(1)}–{t.endSec.toFixed(1)}s
                   </span>
                 </div>
-                <p style={{ margin: "6px 0 0" }}>{t.text}</p>
+                <p className="transcript-text">{t.text}</p>
               </div>
             ))}
           </div>
@@ -602,65 +571,50 @@ export function RecordingAnalyticsPage() {
 
       {analysis ? (
         <>
-          <p className="faint" style={{ margin: "0 0 8px" }}>
-            Illustrative language-sample metrics only — not normed, not a
-            standardized clinical score.
-            {analysis.sampleType || savedRec?.sampleType
-              ? ` · Sample type: ${sampleTypeLabel(analysis.sampleType ?? savedRec?.sampleType)}`
-              : null}
-          </p>
-
-          <div className="grid-3" style={{ marginTop: 0 }}>
+          <div className="grid-3">
             <Card className="stat-card">
-              <h3>Engagement index</h3>
+              <h3>Engagement</h3>
               <div className="value">
                 {analysis.engagement.engagementScore}
-                <span className="faint" style={{ fontSize: "1rem" }}>
-                  /100
-                </span>
+                <span className="value-suffix">/100</span>
               </div>
               <Badge tone={scoreTone(analysis.engagement.engagementScore)}>
-                demo heuristic
+                index
               </Badge>
             </Card>
             <Card className="stat-card">
-              <h3>Contingent responses</h3>
+              <h3>Contingency</h3>
               <div className="value">
                 {analysis.engagement.contingentResponses}/
                 {analysis.engagement.contingentQuestions || 0}
               </div>
-              <p className="faint" style={{ margin: 0 }}>
-                {pct(analysis.engagement.responseRate * 100)} of clinician
-                questions
+              <p className="faint stat-hint">
+                {pct(analysis.engagement.responseRate * 100)} of questions
               </p>
             </Card>
             <Card className="stat-card">
               <h3>NDW / TNW</h3>
               <div className="value">
                 {analysis.client.ndw}
-                <span className="faint" style={{ fontSize: "1rem" }}>
-                  /{analysis.client.tnw}
-                </span>
+                <span className="value-suffix">/{analysis.client.tnw}</span>
               </div>
-              <p className="faint" style={{ margin: 0 }}>
-                TTR {analysis.client.typeTokenRatio.toFixed(2)} (sample-sensitive)
+              <p className="faint stat-hint">
+                TTR {analysis.client.typeTokenRatio.toFixed(2)}
               </p>
             </Card>
           </div>
 
           {clientSessionHistory.length >= 2 ? (
             <Card>
-              <h2 style={{ fontSize: "1.05rem", marginBottom: 4 }}>
-                Multi-session trend
-              </h2>
-              <p className="faint" style={{ marginTop: 0 }}>
-                Oldest → newest for {client.name} (progress monitoring view)
+              <h2 className="section-title">Trends</h2>
+              <p className="muted section-sub">
+                Across samples for this client (oldest → newest)
               </p>
               <div className="trend-grid">
                 <SessionTrend
                   sessions={clientSessionHistory}
                   metric={(s) => s.engagementScore}
-                  label="Engagement index"
+                  label="Engagement"
                   maxHint={100}
                 />
                 <SessionTrend
@@ -691,44 +645,41 @@ export function RecordingAnalyticsPage() {
 
           <div className="grid-2">
             <Card>
-              <h2 style={{ fontSize: "1.05rem" }}>
-                Vocabulary & productivity
-              </h2>
+              <h2 className="section-title">Vocabulary</h2>
               <div className="metric-grid">
                 <MetricTile
-                  label="TNW (total words)"
+                  label="TNW"
                   value={String(analysis.client.tnw)}
+                  hint="Total words"
                 />
                 <MetricTile
-                  label="NDW (different words)"
+                  label="NDW"
                   value={String(analysis.client.ndw)}
-                  hint="Preferred over raw TTR on short samples"
+                  hint="Different words"
                 />
                 <MetricTile
-                  label="TTR (NDW÷TNW)"
+                  label="TTR"
                   value={analysis.client.typeTokenRatio.toFixed(2)}
-                  hint="Sample-size sensitive"
+                  hint="NDW ÷ TNW"
                 />
                 <MetricTile
                   label="MLU (words)"
                   value={analysis.client.meanUtteranceLength.toFixed(1)}
-                  hint="Mean words per turn (not morphemes)"
+                  hint="Mean words per turn"
                 />
                 <MetricTile
                   label="Content density"
                   value={pct(analysis.client.contentRatio * 100)}
-                  hint={`${analysis.client.contentWordCount} content words`}
                 />
                 <MetricTile
                   label="Client turns"
                   value={String(analysis.client.turnCount)}
-                  hint={`${analysis.client.speakingTimeSec.toFixed(1)}s speaking`}
                 />
               </div>
               {analysis.client.topWords.length > 0 &&
               !analysis.client.topWords[0].word.startsWith("(") ? (
-                <div style={{ marginTop: 14 }}>
-                  <strong style={{ fontSize: 13 }}>Top content words</strong>
+                <div className="word-block">
+                  <div className="metric-label">Top content words</div>
                   <div className="word-cloud">
                     {analysis.client.topWords.map((w) => (
                       <span key={w.word} className="word-chip">
@@ -741,9 +692,7 @@ export function RecordingAnalyticsPage() {
             </Card>
 
             <Card>
-              <h2 style={{ fontSize: "1.05rem" }}>
-                Discourse & contingency
-              </h2>
+              <h2 className="section-title">Discourse</h2>
               <div className="metric-grid">
                 <MetricTile
                   label="Contingent responses"
@@ -753,7 +702,6 @@ export function RecordingAnalyticsPage() {
                 <MetricTile
                   label="Response latency"
                   value={`${analysis.engagement.meanResponseLatencySec.toFixed(2)}s`}
-                  hint="Mean pause after clinician questions"
                 />
                 <MetricTile
                   label="Response turns"
@@ -766,9 +714,9 @@ export function RecordingAnalyticsPage() {
                   hint={pct(analysis.engagement.initiativeRatio * 100)}
                 />
                 <MetricTile
-                  label="Talk-time share"
+                  label="Talk share"
                   value={pct(analysis.engagement.clientTalkRatio * 100)}
-                  hint="Client share of dyad speaking time"
+                  hint="Client speaking time"
                 />
                 <MetricTile
                   label="Perseveration"
@@ -779,35 +727,27 @@ export function RecordingAnalyticsPage() {
                   }
                   hint={
                     analysis.engagement.perseveration.topWord
-                      ? `“${analysis.engagement.perseveration.topWord}” ${pct(analysis.engagement.perseveration.topShare * 100)} of content`
-                      : "No dominant content-word loop"
+                      ? `“${analysis.engagement.perseveration.topWord}” ${pct(analysis.engagement.perseveration.topShare * 100)}`
+                      : undefined
                   }
                 />
               </div>
-              <div className="progress-bar" style={{ marginTop: 16 }}>
+              <div className="progress-bar">
                 <i
                   style={{
                     width: `${analysis.engagement.engagementScore}%`,
                   }}
                 />
               </div>
-              {analysis.engagement.perseveration.flagged ? (
-                <p className="faint" style={{ marginBottom: 0, marginTop: 8 }}>
-                  Flag is a demo heuristic from content-word concentration — not
-                  a diagnostic criterion.
-                </p>
-              ) : null}
             </Card>
           </div>
 
           <Card>
-            <h2 style={{ fontSize: "1.05rem" }}>Clinical-style narrative</h2>
-            <p>{analysis.engagement.narrative}</p>
+            <h2 className="section-title">Summary</h2>
+            <p className="summary-narrative">{analysis.engagement.narrative}</p>
             {analysis.engagement.highlights.length ? (
               <>
-                <h3 style={{ fontSize: "0.95rem", fontFamily: "var(--font)" }}>
-                  Highlights
-                </h3>
+                <h3 className="subsection-title">Highlights</h3>
                 <ul className="analytics-list">
                   {analysis.engagement.highlights.map((h) => (
                     <li key={h}>{h}</li>
@@ -815,25 +755,12 @@ export function RecordingAnalyticsPage() {
                 </ul>
               </>
             ) : null}
-            <h3 style={{ fontSize: "0.95rem", fontFamily: "var(--font)" }}>
-              Recommendations
-            </h3>
+            <h3 className="subsection-title">Recommendations</h3>
             <ul className="analytics-list">
               {analysis.engagement.recommendations.map((r) => (
                 <li key={r}>{r}</li>
               ))}
             </ul>
-            <p className="faint" style={{ marginBottom: 0 }}>
-              Client: {client.name}
-              {savedRec ? ` · Session ${savedRec.id}` : ""} · Generated{" "}
-              {new Date(analysis.analyzedAt).toLocaleString()} · Demo analytics
-              only — not a standardized WPS score, not for clinical decisions.
-            </p>
-            <div className="row-actions" style={{ marginTop: 12 }}>
-              <Link to={`/clients/${client.id}`}>
-                <Button variant="secondary">View on client home</Button>
-              </Link>
-            </div>
           </Card>
         </>
       ) : null}

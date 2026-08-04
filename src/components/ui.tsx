@@ -42,16 +42,14 @@ export function Button({
   className = "",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost";
 }) {
   const v =
     variant === "secondary"
       ? "btn-secondary"
       : variant === "ghost"
         ? "btn-ghost"
-        : variant === "danger"
-          ? "btn-danger"
-          : "";
+        : "";
   return <button className={`btn ${v} ${className}`.trim()} {...props} />;
 }
 
@@ -76,24 +74,6 @@ export function Field({
     <div className="field">
       <label>{label}</label>
       {children}
-    </div>
-  );
-}
-
-export function Empty({
-  title,
-  body,
-  action,
-}: {
-  title: string;
-  body?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="empty">
-      <strong>{title}</strong>
-      {body ? <p className="muted">{body}</p> : null}
-      {action}
     </div>
   );
 }

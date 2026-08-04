@@ -1,4 +1,10 @@
 import type { SpeakerRole, TranscriptTurn } from "../mock/sampleSession";
+import type {
+  LanguageSampleType,
+  PerseverationLevel,
+} from "../types";
+
+export type { LanguageSampleType, PerseverationLevel };
 
 const FUNCTION_WORDS = new Set(
   [
@@ -202,8 +208,6 @@ export interface SpeakerMetrics {
   topWords: { word: string; count: number }[];
 }
 
-export type PerseverationLevel = "none" | "mild" | "elevated";
-
 export interface PerseverationMetrics {
   flagged: boolean;
   level: PerseverationLevel;
@@ -240,11 +244,6 @@ export interface EngagementMetrics {
   highlights: string[];
   recommendations: string[];
 }
-
-export type LanguageSampleType =
-  | "narrative"
-  | "conversation"
-  | "routines";
 
 export interface SessionAnalysis {
   durationSec: number;
@@ -597,19 +596,4 @@ export function sampleTypeLabel(t?: LanguageSampleType): string {
   if (t === "conversation") return "Conversation";
   if (t === "routines") return "Routines";
   return "Language sample";
-}
-
-/** Build turns from live recognition chunks with speaker labels. */
-export function turnsFromLiveChunks(
-  chunks: { speaker: SpeakerRole; text: string; startSec: number; endSec: number }[]
-): TranscriptTurn[] {
-  return chunks
-    .filter((c) => c.text.trim())
-    .map((c, i) => ({
-      id: `live-${i}`,
-      speaker: c.speaker,
-      text: c.text.trim(),
-      startSec: c.startSec,
-      endSec: Math.max(c.endSec, c.startSec + 0.3),
-    }));
 }
