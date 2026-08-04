@@ -10,6 +10,7 @@ import {
 import { ageFromDob } from "../lib/format";
 import {
   analyzeSession,
+  sampleTypeLabel,
   type SessionAnalysis,
 } from "../lib/sessionAnalytics";
 import type { SpeakerRole, TranscriptTurn } from "../mock/sampleSession";
@@ -143,6 +144,71 @@ function MetricTile({
   );
 }
 
+/** Mini sparkline for multi-session progress (oldest → newest). */
+function SessionTrend({
+  sessions,
+  metric,
+  label,
+  format = (n) => String(Math.round(n)),
+  maxHint,
+}: {
+  sessions: SessionRecording[];
+  metric: (s: SessionRecording) => number;
+  label: string;
+  format?: (n: number) => string;
+  maxHint?: number;
+}) {
+  const ordered = [...sessions].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt)
+  );
+  if (ordered.length < 2) return null;
+  const values = ordered.map(metric);
+  const max = Math.max(...values, maxHint ?? 0, 1);
+  const w = 200;
+  const h = 48;
+  const pts = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * (w - 8) + 4;
+      const y = h - 6 - (v / max) * (h - 14);
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="trend-card">
+      <div className="metric-label">{label}</div>
+      <svg
+        className="trend-spark"
+        viewBox={`0 0 ${w} ${h}`}
+        role="img"
+        aria-label={label}
+      >
+        <polyline
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth={2}
+          points={pts}
+        />
+        {values.map((v, i) => {
+          const x = (i / (values.length - 1)) * (w - 8) + 4;
+          const y = h - 6 - (v / max) * (h - 14);
+          return (
+            <circle key={i} cx={x} cy={y} r={3.5} fill="var(--navy)" />
+          );
+        })}
+      </svg>
+      <div className="trend-values">
+        {ordered.map((s, i) => (
+          <span key={s.id} className="faint">
+            {format(values[i])}
+            {i < ordered.length - 1 ? " → " : ""}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function analysisFromSaved(rec: SessionRecording): SessionAnalysis {
   return analyzeSession(
     rec.turns.map((t) => ({
@@ -152,7 +218,8 @@ function analysisFromSaved(rec: SessionRecording): SessionAnalysis {
       startSec: t.startSec,
       endSec: t.endSec,
     })),
-    rec.durationSec
+    rec.durationSec,
+    rec.sampleType
   );
 }
 
@@ -251,28 +318,6 @@ export function RecordingAnalyticsPage() {
     [client, saveSessionRecording, setSearchParams]
   );
 
-  const runAnalysis = useCallback(
-    (
-      sessionTurns: TranscriptTurn[],
-      durationSec: number,
-      opts?: { save?: boolean; title?: string }
-    ) => {
-      setPhase("analyzing");
-      const shouldSave = opts?.save !== false;
-      if (shouldSave) setSavedRec(null);
-      window.setTimeout(() => {
-        const result = analyzeSession(sessionTurns, durationSec);
-        setAnalysis(result);
-        setTurns(sessionTurns);
-        setPhase("done");
-        if (shouldSave && opts?.title) {
-          void persistAnalysis(result, opts.title);
-        }
-      }, 350);
-    },
-    [persistAnalysis]
-  );
-
   const loadClientSample = async (sessionDefId: string) => {
     if (!client) return;
     const def = getSessionDef(sessionDefId);
@@ -311,10 +356,16 @@ export function RecordingAnalyticsPage() {
       setTurns(sessionTurns);
       setPhase("ready");
       await ctx.close().catch(() => undefined);
-      runAnalysis(sessionTurns, prof.durationSec, {
-        save: true,
-        title: def.title,
-      });
+      // Analyze with sample type for labeling (seed sessions already saved)
+      const result = analyzeSession(
+        sessionTurns,
+        prof.durationSec,
+        def.sampleType
+      );
+      setAnalysis(result);
+      setTurns(sessionTurns);
+      setPhase("done");
+      void persistAnalysis(result, def.title);
     } catch (e) {
       setPhase("error");
       setError(e instanceof Error ? e.message : "Could not load sample audio");
@@ -382,6 +433,7 @@ export function RecordingAnalyticsPage() {
 
   const clientVoice = CLIENT_VOICES[client.id] ?? "Client voice";
   const sampleDefs = sessionsForClientDef(client.id);
+  const clientSessionHistory = sessionsForClient(client.id);
 
   return (
     <>
@@ -444,7 +496,10 @@ export function RecordingAnalyticsPage() {
               >
                 <div>
                   <strong style={{ fontSize: 14 }}>{def.title}</strong>
-                  <div className="faint">{def.profileNote}</div>
+                  <div className="faint">
+                    <Badge tone="info">{sampleTypeLabel(def.sampleType)}</Badge>{" "}
+                    {def.profileNote}
+                  </div>
                 </div>
                 <Button
                   variant="secondary"
@@ -547,9 +602,17 @@ export function RecordingAnalyticsPage() {
 
       {analysis ? (
         <>
+          <p className="faint" style={{ margin: "0 0 8px" }}>
+            Illustrative language-sample metrics only — not normed, not a
+            standardized clinical score.
+            {analysis.sampleType || savedRec?.sampleType
+              ? ` · Sample type: ${sampleTypeLabel(analysis.sampleType ?? savedRec?.sampleType)}`
+              : null}
+          </p>
+
           <div className="grid-3" style={{ marginTop: 0 }}>
             <Card className="stat-card">
-              <h3>Client engagement</h3>
+              <h3>Engagement index</h3>
               <div className="value">
                 {analysis.engagement.engagementScore}
                 <span className="faint" style={{ fontSize: "1rem" }}>
@@ -557,46 +620,99 @@ export function RecordingAnalyticsPage() {
                 </span>
               </div>
               <Badge tone={scoreTone(analysis.engagement.engagementScore)}>
-                composite score
+                demo heuristic
               </Badge>
             </Card>
             <Card className="stat-card">
-              <h3>Client talk share</h3>
+              <h3>Contingent responses</h3>
               <div className="value">
-                {pct(analysis.engagement.clientTalkRatio * 100)}
+                {analysis.engagement.contingentResponses}/
+                {analysis.engagement.contingentQuestions || 0}
               </div>
               <p className="faint" style={{ margin: 0 }}>
-                of dyad speaking time
+                {pct(analysis.engagement.responseRate * 100)} of clinician
+                questions
               </p>
             </Card>
             <Card className="stat-card">
-              <h3>Lexical diversity (TTR)</h3>
+              <h3>NDW / TNW</h3>
               <div className="value">
-                {analysis.client.typeTokenRatio.toFixed(2)}
+                {analysis.client.ndw}
+                <span className="faint" style={{ fontSize: "1rem" }}>
+                  /{analysis.client.tnw}
+                </span>
               </div>
               <p className="faint" style={{ margin: 0 }}>
-                {analysis.client.uniqueWords} unique / {analysis.client.totalWords}{" "}
-                words
+                TTR {analysis.client.typeTokenRatio.toFixed(2)} (sample-sensitive)
               </p>
             </Card>
           </div>
 
+          {clientSessionHistory.length >= 2 ? (
+            <Card>
+              <h2 style={{ fontSize: "1.05rem", marginBottom: 4 }}>
+                Multi-session trend
+              </h2>
+              <p className="faint" style={{ marginTop: 0 }}>
+                Oldest → newest for {client.name} (progress monitoring view)
+              </p>
+              <div className="trend-grid">
+                <SessionTrend
+                  sessions={clientSessionHistory}
+                  metric={(s) => s.engagementScore}
+                  label="Engagement index"
+                  maxHint={100}
+                />
+                <SessionTrend
+                  sessions={clientSessionHistory}
+                  metric={(s) => s.meanUtteranceLength}
+                  label="MLU (words)"
+                  format={(n) => n.toFixed(1)}
+                />
+                <SessionTrend
+                  sessions={clientSessionHistory}
+                  metric={(s) => s.clientUniqueWords}
+                  label="NDW"
+                />
+                <SessionTrend
+                  sessions={clientSessionHistory}
+                  metric={(s) =>
+                    s.contingentQuestions
+                      ? (s.contingentResponses / s.contingentQuestions) * 100
+                      : 0
+                  }
+                  label="Contingency %"
+                  format={(n) => `${Math.round(n)}%`}
+                  maxHint={100}
+                />
+              </div>
+            </Card>
+          ) : null}
+
           <div className="grid-2">
             <Card>
-              <h2 style={{ fontSize: "1.05rem" }}>Client vocabulary</h2>
+              <h2 style={{ fontSize: "1.05rem" }}>
+                Vocabulary & productivity
+              </h2>
               <div className="metric-grid">
                 <MetricTile
-                  label="Total words"
-                  value={String(analysis.client.totalWords)}
+                  label="TNW (total words)"
+                  value={String(analysis.client.tnw)}
                 />
                 <MetricTile
-                  label="Unique words"
-                  value={String(analysis.client.uniqueWords)}
+                  label="NDW (different words)"
+                  value={String(analysis.client.ndw)}
+                  hint="Preferred over raw TTR on short samples"
+                />
+                <MetricTile
+                  label="TTR (NDW÷TNW)"
+                  value={analysis.client.typeTokenRatio.toFixed(2)}
+                  hint="Sample-size sensitive"
                 />
                 <MetricTile
                   label="MLU (words)"
                   value={analysis.client.meanUtteranceLength.toFixed(1)}
-                  hint="Mean length of utterance"
+                  hint="Mean words per turn (not morphemes)"
                 />
                 <MetricTile
                   label="Content density"
@@ -604,13 +720,9 @@ export function RecordingAnalyticsPage() {
                   hint={`${analysis.client.contentWordCount} content words`}
                 />
                 <MetricTile
-                  label="Turns"
+                  label="Client turns"
                   value={String(analysis.client.turnCount)}
-                />
-                <MetricTile
-                  label="Speaking time"
-                  value={`${analysis.client.speakingTimeSec.toFixed(1)}s`}
-                  hint={pct(analysis.client.speakingTimePct)}
+                  hint={`${analysis.client.speakingTimeSec.toFixed(1)}s speaking`}
                 />
               </div>
               {analysis.client.topWords.length > 0 &&
@@ -625,41 +737,51 @@ export function RecordingAnalyticsPage() {
                     ))}
                   </div>
                 </div>
-              ) : (
-                <p className="faint" style={{ marginTop: 12 }}>
-                  Vocabulary list populates when a transcript is available.
-                </p>
-              )}
+              ) : null}
             </Card>
 
             <Card>
-              <h2 style={{ fontSize: "1.05rem" }}>Engagement & contingency</h2>
+              <h2 style={{ fontSize: "1.05rem" }}>
+                Discourse & contingency
+              </h2>
               <div className="metric-grid">
                 <MetricTile
-                  label="Response rate"
-                  value={pct(analysis.engagement.responseRate * 100)}
-                  hint="Client replies after clinician questions"
+                  label="Contingent responses"
+                  value={`${analysis.engagement.contingentResponses}/${analysis.engagement.contingentQuestions}`}
+                  hint={pct(analysis.engagement.responseRate * 100)}
                 />
                 <MetricTile
-                  label="Therapist questions"
-                  value={String(analysis.engagement.therapistQuestions)}
-                />
-                <MetricTile
-                  label="Mean response latency"
+                  label="Response latency"
                   value={`${analysis.engagement.meanResponseLatencySec.toFixed(2)}s`}
+                  hint="Mean pause after clinician questions"
                 />
                 <MetricTile
-                  label="Client initiative turns"
+                  label="Response turns"
+                  value={String(analysis.engagement.responseTurns)}
+                  hint={pct(analysis.engagement.responseTurnRatio * 100)}
+                />
+                <MetricTile
+                  label="Initiative turns"
                   value={String(analysis.engagement.initiativeTurns)}
+                  hint={pct(analysis.engagement.initiativeRatio * 100)}
                 />
                 <MetricTile
-                  label="Turn balance"
-                  value={pct(analysis.engagement.turnBalance * 100)}
-                  hint="Client share of turns"
+                  label="Talk-time share"
+                  value={pct(analysis.engagement.clientTalkRatio * 100)}
+                  hint="Client share of dyad speaking time"
                 />
                 <MetricTile
-                  label="Therapist talk time"
-                  value={`${analysis.therapist.speakingTimeSec.toFixed(1)}s`}
+                  label="Perseveration"
+                  value={
+                    analysis.engagement.perseveration.flagged
+                      ? analysis.engagement.perseveration.level
+                      : "none"
+                  }
+                  hint={
+                    analysis.engagement.perseveration.topWord
+                      ? `“${analysis.engagement.perseveration.topWord}” ${pct(analysis.engagement.perseveration.topShare * 100)} of content`
+                      : "No dominant content-word loop"
+                  }
                 />
               </div>
               <div className="progress-bar" style={{ marginTop: 16 }}>
@@ -669,6 +791,12 @@ export function RecordingAnalyticsPage() {
                   }}
                 />
               </div>
+              {analysis.engagement.perseveration.flagged ? (
+                <p className="faint" style={{ marginBottom: 0, marginTop: 8 }}>
+                  Flag is a demo heuristic from content-word concentration — not
+                  a diagnostic criterion.
+                </p>
+              ) : null}
             </Card>
           </div>
 

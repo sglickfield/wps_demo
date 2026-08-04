@@ -5,6 +5,7 @@
  * client's clinical profile / rating-scale pattern in seed data.
  */
 
+import type { LanguageSampleType } from "../lib/sessionAnalytics";
 import type { TranscriptTurn } from "./sampleSession";
 
 export type SessionMode = "demo";
@@ -19,6 +20,8 @@ export interface SessionDef {
   audioFile: string;
   therapistVoice: string;
   clientVoice: string;
+  /** Clinical sample elicitation type */
+  sampleType: LanguageSampleType;
   /** Clinical rationale for demo consistency */
   profileNote: string;
   turns: Omit<TranscriptTurn, "id" | "startSec" | "endSec">[];
@@ -62,6 +65,7 @@ const MAYA_SESSIONS: SessionDef[] = [
     audioFile: "maya-01-recess.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-maya"],
+    sampleType: "conversation",
     profileNote:
       "Sparse peer narrative; short MLU; limited social vocabulary (matches social communication referral).",
     turns: [
@@ -87,6 +91,7 @@ const MAYA_SESSIONS: SessionDef[] = [
     audioFile: "maya-02-friend.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-maya"],
+    sampleType: "conversation",
     profileNote: "Limited social descriptors; few elaborations after prompts.",
     turns: [
       t("therapist", "Maya, can you tell me about a friend at school?"),
@@ -111,6 +116,7 @@ const MAYA_SESSIONS: SessionDef[] = [
     audioFile: "maya-03-weekend.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-maya"],
+    sampleType: "narrative",
     profileNote: "Weekend story remains concrete and brief; engagement still emerging.",
     turns: [
       t("therapist", "Hi Maya. What did you do this weekend?"),
@@ -130,42 +136,44 @@ const MAYA_SESSIONS: SessionDef[] = [
 ];
 
 /**
- * Jordan Kim — SRS parent mild–moderate (avg ~1.8); ABAS in progress lower adaptive items.
- * Pattern: fuller sentences, moderate detail, decent contingency; mild social friction.
+ * Jordan Kim — SRS parent mild–moderate (avg ~1.8); ABAS in progress (lower adaptive items).
+ * Pattern: verbally capable (longer MLU) with mild peer/group friction — not as impaired as Sam,
+ * not as thin as Maya. Engagement stays high-moderate (not “elite”) to leave room for SRS mild elevation.
  */
 const JORDAN_SESSIONS: SessionDef[] = [
   {
     id: "sess-jordan-01-classroom",
     clientId: "cli-jordan",
     title: "Language sample — classroom routines",
-    daysAgo: 18,
+    daysAgo: 11,
     audioFile: "jordan-01-classroom.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-jordan"],
+    sampleType: "routines",
     profileNote:
-      "Moderate MLU and solid response rate; mild social friction with peers (matches SRS mild–moderate).",
+      "Solid MLU and contingency; mild group-work friction (aligns with mild–moderate parent SRS).",
     turns: [
       t("therapist", "Jordan, walk me through a normal morning in class."),
       t(
         "client",
-        "I put my backpack away, get my folder, and sit at my table. Sometimes I forget my pencil though."
+        "I put my bag away, get my folder, and sit down. Sometimes I forget a pencil."
       ),
       t("therapist", "What do you do if you need help from a classmate?"),
       t(
         "client",
-        "I usually ask the person next to me. If they look busy I wait a little, then I raise my hand."
+        "I ask the person next to me. If they look busy I wait, then I raise my hand."
       ),
       t("therapist", "How do group projects go for you?"),
       t(
         "client",
-        "They are okay. I like when jobs are clear. If people talk over each other I get annoyed and go quiet."
+        "Okay if jobs are clear. When people talk over each other I get annoyed and go quiet."
       ),
       t("therapist", "What helps you stay in the group conversation?"),
       t(
         "client",
-        "If someone asks me a direct question, I answer. Open free talk is harder for me."
+        "A direct question. Open free talk is harder. I miss jokes sometimes."
       ),
-      t("therapist", "That is useful insight. Thanks for explaining so clearly."),
+      t("therapist", "That is useful insight. Thanks for explaining."),
       t("client", "Sure. I want group work to feel less stressful."),
     ],
   },
@@ -173,68 +181,72 @@ const JORDAN_SESSIONS: SessionDef[] = [
     id: "sess-jordan-02-soccer",
     clientId: "cli-jordan",
     title: "Language sample — soccer and teammates",
-    daysAgo: 10,
+    daysAgo: 8,
     audioFile: "jordan-02-soccer.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-jordan"],
-    profileNote: "Narrative ability adequate; social motivation present with mild rigid preferences.",
+    sampleType: "conversation",
+    profileNote:
+      "Social motivation present; mild rigidity and awkward peer banter (mild–moderate band).",
     turns: [
       t("therapist", "Tell me about soccer practice this week."),
       t(
         "client",
-        "We did drills for passing and then scrimmaged. I played midfield and tried to call for the ball more."
+        "We did passing drills and a scrimmage. I played midfield and tried to call for the ball."
       ),
       t("therapist", "How do you handle it when a teammate makes a mistake?"),
       t(
         "client",
-        "I used to get mad. Now I say next time or just pass again. Coach said that helps the team vibe."
+        "I used to get mad. Now I say next time or pass again. Coach said that helps."
       ),
       t("therapist", "Who is a teammate you work well with?"),
       t(
         "client",
-        "Marcus. He listens and does not joke when we are learning a new play. That makes it easier."
+        "Marcus. He listens and does not joke during new plays. That is easier for me."
       ),
       t("therapist", "What is still hard about being on the team socially?"),
       t(
         "client",
-        "Locker room jokes. I do not always get them, so I smile and check my phone. It is awkward."
+        "Locker room jokes. I do not always get them, so I smile and check my phone."
       ),
-      t("therapist", "You are describing that really clearly. Great session."),
-      t("client", "Thanks. Soccer is the place I try the hardest socially."),
+      t("therapist", "You described that clearly. Good work today."),
+      t("client", "Thanks. Soccer is where I try hardest socially."),
     ],
   },
   {
     id: "sess-jordan-03-homework",
     clientId: "cli-jordan",
     title: "Language sample — homework and home routines",
-    daysAgo: 3,
+    daysAgo: 4,
     audioFile: "jordan-03-homework.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-jordan"],
-    profileNote: "Practical language solid; adaptive/executive themes mild (ABAS in progress).",
+    sampleType: "routines",
+    profileNote:
+      "Practical language adequate; needs structure for chores (ABAS parent still in progress).",
     turns: [
       t("therapist", "How do you organize homework after school?"),
       t(
         "client",
-        "I snack first, then check the planner. Math first because it is hardest, then reading."
+        "Snack first, then planner. Math first because it is hardest, then reading."
       ),
       t("therapist", "What happens when an assignment is confusing?"),
       t(
         "client",
-        "I message a friend or ask my mom. Sometimes I just guess and that is when grades drop."
+        "I message a friend or ask my mom. If I just guess, my grades drop."
       ),
       t("therapist", "How do you ask for help without getting frustrated?"),
       t(
         "client",
-        "I try to say which part is stuck instead of saying I hate this. That works better with teachers."
+        "I try to say which part is stuck instead of saying I hate this."
       ),
       t("therapist", "What about chores or other home responsibilities?"),
       t(
         "client",
-        "I do dishes on weekdays. I need reminders for laundry. I am better if it is on a checklist."
+        "Dishes on weekdays. Laundry needs reminders. Checklists help a lot."
       ),
       t("therapist", "Checklists sound like a strong strategy for you."),
-      t("client", "Yeah. When steps are clear I follow through pretty well."),
+      t("client", "Yeah. When steps are clear I follow through."),
     ],
   },
 ];
@@ -252,6 +264,7 @@ const SAM_SESSIONS: SessionDef[] = [
     audioFile: "sam-01-trains.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-sam"],
+    sampleType: "conversation",
     profileNote:
       "High talk time on restricted interest; weaker contingency (matches elevated SRS social communication).",
     turns: [
@@ -284,6 +297,7 @@ const SAM_SESSIONS: SessionDef[] = [
     audioFile: "sam-02-group.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-sam"],
+    sampleType: "conversation",
     profileNote: "Social cognition/communication strain in collaborative talk; repetitive repair phrases.",
     turns: [
       t("therapist", "Tell me about the science group project."),
@@ -313,6 +327,7 @@ const SAM_SESSIONS: SessionDef[] = [
     audioFile: "sam-03-emotions.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-sam"],
+    sampleType: "conversation",
     profileNote: "Limited emotion vocabulary; social motivation dips; RRB-style repetition present.",
     turns: [
       t("therapist", "You looked upset after specials. What happened?"),
@@ -343,6 +358,7 @@ const ALEX_SESSIONS: SessionDef[] = [
     audioFile: "alex-01-baseline.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-alex"],
+    sampleType: "routines",
     profileNote:
       "Baseline: short steps, heavy prompting, lower independence language (ABAS T1 below average).",
     turns: [
@@ -368,6 +384,7 @@ const ALEX_SESSIONS: SessionDef[] = [
     audioFile: "alex-02-chores.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-alex"],
+    sampleType: "routines",
     profileNote: "Mid progress: longer sequences, some self-monitoring language.",
     turns: [
       t("therapist", "What chores are you doing at home now?"),
@@ -402,6 +419,7 @@ const ALEX_SESSIONS: SessionDef[] = [
     audioFile: "alex-03-community.wav",
     therapistVoice: THERAPIST_VOICE,
     clientVoice: CLIENT_VOICES["cli-alex"],
+    sampleType: "narrative",
     profileNote:
       "Progress check: multi-step community narrative, higher engagement (aligns with ABAS T2 gains).",
     turns: [
@@ -477,9 +495,9 @@ export const SESSION_DURATIONS: Record<string, number> = {
   "sess-maya-01-recess": 38.0,
   "sess-maya-02-friend": 39.56,
   "sess-maya-03-weekend": 35.45,
-  "sess-jordan-01-classroom": 50.21,
-  "sess-jordan-02-soccer": 50.91,
-  "sess-jordan-03-homework": 48.37,
+  "sess-jordan-01-classroom": 45.49,
+  "sess-jordan-02-soccer": 46.37,
+  "sess-jordan-03-homework": 42.78,
   "sess-sam-01-trains": 52.29,
   "sess-sam-02-group": 44.28,
   "sess-sam-03-emotions": 40.74,

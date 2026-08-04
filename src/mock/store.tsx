@@ -410,6 +410,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }) => {
       await delay(200);
       const { analysis } = input;
+      const eng = analysis.engagement;
       const rec: SessionRecording = {
         id: uid("sess"),
         clientId: input.clientId,
@@ -417,15 +418,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         mode: input.mode,
         createdAt: new Date().toISOString(),
         durationSec: analysis.durationSec,
-        engagementScore: analysis.engagement.engagementScore,
-        clientTalkRatio: analysis.engagement.clientTalkRatio,
-        clientWordCount: analysis.client.totalWords,
-        clientUniqueWords: analysis.client.uniqueWords,
+        engagementScore: eng.engagementScore,
+        clientTalkRatio: eng.clientTalkRatio,
+        clientWordCount: analysis.client.tnw,
+        clientUniqueWords: analysis.client.ndw,
         typeTokenRatio: analysis.client.typeTokenRatio,
         meanUtteranceLength: analysis.client.meanUtteranceLength,
-        narrative: analysis.engagement.narrative,
-        highlights: analysis.engagement.highlights,
-        recommendations: analysis.engagement.recommendations,
+        contingentResponses: eng.contingentResponses,
+        contingentQuestions: eng.contingentQuestions,
+        meanResponseLatencySec: eng.meanResponseLatencySec,
+        initiativeTurns: eng.initiativeTurns,
+        responseTurns: eng.responseTurns,
+        initiativeRatio: eng.initiativeRatio,
+        perseverationLevel: eng.perseveration.level,
+        perseverationTopWord: eng.perseveration.topWord ?? undefined,
+        perseverationTopShare: eng.perseveration.topShare,
+        sampleType: analysis.sampleType,
+        narrative: eng.narrative,
+        highlights: eng.highlights,
+        recommendations: eng.recommendations,
         turns: analysis.turns.map((t) => ({
           id: t.id,
           speaker: t.speaker,

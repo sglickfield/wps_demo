@@ -40,7 +40,15 @@ Route: `/session-analytics?clientId=<id>` (sidebar **Session analytics**).
 
 Analyses are **required to be tied to a client record** and are listed on that client’s home page.
 
-Open a client-linked sample session to play the recording, view the diarized Therapist/Client transcript, and review vocabulary + engagement metrics (all in-browser).
+Open a client-linked sample session to play the recording, view the diarized Therapist/Client transcript, and review language-sample metrics (all in-browser):
+
+- **Productivity:** TNW, NDW, MLU (words), TTR (sample-sensitive)  
+- **Discourse:** contingent responses (e.g. 4/5), response latency, initiations vs responses  
+- **Flags:** content-word perseveration (demo heuristic)  
+- **Trends:** multi-session sparklines (engagement, MLU, NDW, contingency)  
+- **Sample type:** narrative / conversation / routines  
+
+Illustrative only — not normed clinical scores.
 
 Seed data includes **3 language-sample sessions per client** (12 total), each with:
 

@@ -176,12 +176,21 @@ export interface WordToken {
   lemma: string;
 }
 
+/** TNW = total number of words; NDW = number of different words (unique). */
 export interface SpeakerMetrics {
   speaker: SpeakerRole;
   turnCount: number;
+  /** Total number of words (TNW) */
   totalWords: number;
+  /** Number of different words (NDW) */
   uniqueWords: number;
+  /** TNW alias for clinical labeling */
+  tnw: number;
+  /** NDW alias for clinical labeling */
+  ndw: number;
+  /** Type–token ratio = NDW/TNW; sample-size sensitive on short samples */
   typeTokenRatio: number;
+  /** Mean length of utterance in words (not morphemes) */
   meanUtteranceLength: number;
   contentWordCount: number;
   functionWordCount: number;
@@ -193,20 +202,49 @@ export interface SpeakerMetrics {
   topWords: { word: string; count: number }[];
 }
 
+export type PerseverationLevel = "none" | "mild" | "elevated";
+
+export interface PerseverationMetrics {
+  flagged: boolean;
+  level: PerseverationLevel;
+  /** Dominant content word share of all content words (0–1) */
+  topShare: number;
+  topWord: string | null;
+  topCount: number;
+}
+
 export interface EngagementMetrics {
-  /** 0–100 composite engagement score for the client */
+  /** 0–100 demo heuristic — not a standardized clinical score */
   engagementScore: number;
   clientTalkRatio: number;
   turnBalance: number;
+  /** Contingent responses / therapist questions */
   responseRate: number;
+  /** e.g. 4 of 5 questions got an immediate client reply */
+  contingentResponses: number;
+  contingentQuestions: number;
+  /** Mean pause (sec) from end of clinician question to client reply */
   meanResponseLatencySec: number;
   therapistQuestions: number;
   clientResponsesAfterQuestion: number;
+  /** Client turns not immediately after a clinician question */
   initiativeTurns: number;
+  /** Client turns that follow a clinician question */
+  responseTurns: number;
+  /** initiativeTurns / client turns */
+  initiativeRatio: number;
+  /** responseTurns / client turns */
+  responseTurnRatio: number;
+  perseveration: PerseverationMetrics;
   narrative: string;
   highlights: string[];
   recommendations: string[];
 }
+
+export type LanguageSampleType =
+  | "narrative"
+  | "conversation"
+  | "routines";
 
 export interface SessionAnalysis {
   durationSec: number;
@@ -215,6 +253,7 @@ export interface SessionAnalysis {
   client: SpeakerMetrics;
   engagement: EngagementMetrics;
   analyzedAt: string;
+  sampleType?: LanguageSampleType;
 }
 
 function tokenize(text: string): WordToken[] {
@@ -268,6 +307,8 @@ function metricsFor(
     turnCount: mine.length,
     totalWords,
     uniqueWords,
+    tnw: totalWords,
+    ndw: uniqueWords,
     typeTokenRatio,
     meanUtteranceLength,
     contentWordCount: content.length,
@@ -358,7 +399,17 @@ function buildEngagement(
     client.contentWordCount && client.topWords[0]
       ? client.topWords[0].count / client.contentWordCount
       : 0;
-  const persPenalty = topShare >= 0.18 ? 22 : topShare >= 0.12 ? 12 : 0;
+  const persLevel: PerseverationLevel =
+    topShare >= 0.18 ? "elevated" : topShare >= 0.12 ? "mild" : "none";
+  const perseveration: PerseverationMetrics = {
+    flagged: persLevel !== "none",
+    level: persLevel,
+    topShare,
+    topWord: client.topWords[0]?.word ?? null,
+    topCount: client.topWords[0]?.count ?? 0,
+  };
+  const persPenalty =
+    persLevel === "elevated" ? 22 : persLevel === "mild" ? 12 : 0;
 
   const engagementScore = Math.round(
     clamp(
@@ -379,47 +430,77 @@ function buildEngagement(
       ? client.turnCount / (therapist.turnCount + client.turnCount)
       : 0;
 
-  // Initiative: client turns not immediately after a therapist question
+  // Classify client turns: response (after clinician Q) vs initiative
   let initiativeTurns = 0;
+  let responseTurns = 0;
   for (let i = 0; i < turns.length; i++) {
     if (turns[i].speaker !== "client") continue;
     const prev = turns[i - 1];
-    if (!prev || prev.speaker !== "therapist" || !isQuestion(prev.text)) {
+    if (prev && prev.speaker === "therapist" && isQuestion(prev.text)) {
+      responseTurns += 1;
+    } else {
       initiativeTurns += 1;
     }
   }
+  const initiativeRatio = client.turnCount
+    ? initiativeTurns / client.turnCount
+    : 0;
+  const responseTurnRatio = client.turnCount
+    ? responseTurns / client.turnCount
+    : 0;
 
   const highlights: string[] = [];
   const recommendations: string[] = [];
 
-  if (client.typeTokenRatio >= 0.5) {
+  highlights.push(
+    `Productivity: TNW ${client.tnw}, NDW ${client.ndw} (TTR ${client.typeTokenRatio.toFixed(2)}; short samples can inflate TTR).`
+  );
+
+  if (client.ndw >= 25) {
     highlights.push(
-      `Strong lexical diversity (TTR ${client.typeTokenRatio.toFixed(2)}) for a short sample.`
+      `Solid number of different words (NDW ${client.ndw}) for this sample length.`
     );
-  } else {
+  } else if (client.tnw > 0 && client.ndw < 18) {
     recommendations.push(
-      "Elicit denser content vocabulary (describing words, category labels) in future probes."
+      "Probe for varied content vocabulary (descriptors, category labels) to increase NDW."
     );
   }
 
   if (client.meanUtteranceLength >= 7) {
     highlights.push(
-      `Mean utterance length of ${client.meanUtteranceLength.toFixed(1)} words suggests multi-clause narrative attempts.`
+      `MLU (words) ${client.meanUtteranceLength.toFixed(1)} suggests multi-word elaborated turns.`
     );
   } else {
     recommendations.push(
-      "Prompt for expansion (e.g., “Tell me more about…”) to increase utterance length."
+      "Prompt for expansion (e.g., “Tell me more about…”) to increase mean words per turn."
     );
   }
 
-  if (responseRate >= 0.8) {
+  if (therapistQs.length) {
     highlights.push(
-      `High contingency: responded to ${Math.round(responseRate * 100)}% of therapist questions.`
+      `Contingent responding: ${responsesAfterQ}/${therapistQs.length} clinician questions (${Math.round(responseRate * 100)}%).`
     );
-  } else {
+  }
+  if (responseRate < 0.75 && therapistQs.length) {
     recommendations.push(
-      "Support contingent responding with wait time and visual scaffolds after questions."
+      "Support contingent responding with wait time and scaffolds after questions."
     );
+  }
+
+  if (meanResponseLatencySec > 0) {
+    highlights.push(
+      `Mean response latency ${meanResponseLatencySec.toFixed(2)}s after clinician questions.`
+    );
+  }
+
+  highlights.push(
+    `Discourse role: ${responseTurns} response turn(s), ${initiativeTurns} initiative turn(s) (${Math.round(initiativeRatio * 100)}% initiations).`
+  );
+
+  if (perseveration.flagged && perseveration.topWord) {
+    const msg = `Perseveration flag (${perseveration.level}): “${perseveration.topWord}” ≈ ${Math.round(perseveration.topShare * 100)}% of content words.`;
+    if (perseveration.level === "elevated") recommendations.push(msg);
+    else highlights.push(msg);
   }
 
   if (clientTalkRatio >= 0.35 && clientTalkRatio <= 0.65) {
@@ -451,17 +532,21 @@ function buildEngagement(
           : "emerging";
 
   const narrative = [
-    `Client language-sample analysis over ${durationSec.toFixed(0)}s indicates ${band} engagement (composite ${engagementScore}/100).`,
-    `The client produced ${client.totalWords} words across ${client.turnCount} turns (MLU ${client.meanUtteranceLength.toFixed(1)}; TTR ${client.typeTokenRatio.toFixed(2)}).`,
-    `Speaking-time share was ${Math.round(clientTalkRatio * 100)}% client / ${Math.round((1 - clientTalkRatio) * 100)}% therapist, with a ${Math.round(responseRate * 100)}% response rate to clinician questions.`,
-    client.contentWordCount
-      ? `Content-word density was ${Math.round(client.contentRatio * 100)}%, consistent with narrative topic vocabulary (e.g., activities, people, places).`
-      : `Limited content vocabulary was observed in this sample.`,
+    `Client language-sample analysis over ${durationSec.toFixed(0)}s indicates ${band} engagement (demo index ${engagementScore}/100 — heuristic, not normed).`,
+    `Productivity: TNW ${client.tnw}, NDW ${client.ndw}; MLU (words) ${client.meanUtteranceLength.toFixed(1)}; TTR ${client.typeTokenRatio.toFixed(2)} (interpret TTR cautiously on short samples).`,
+    therapistQs.length
+      ? `Contingency: ${responsesAfterQ}/${therapistQs.length} questions answered immediately (${Math.round(responseRate * 100)}%); mean response latency ${meanResponseLatencySec.toFixed(2)}s.`
+      : `No clinician questions detected in this transcript.`,
+    `Discourse: ${Math.round(responseTurnRatio * 100)}% of client turns were responses; ${Math.round(initiativeRatio * 100)}% were initiations.`,
+    perseveration.flagged && perseveration.topWord
+      ? `Perseveration ${perseveration.level}: “${perseveration.topWord}” dominated content vocabulary.`
+      : `No elevated content-word perseveration flag.`,
+    `Speaking-time share was ${Math.round(clientTalkRatio * 100)}% client / ${Math.round((1 - clientTalkRatio) * 100)}% therapist.`,
   ].join(" ");
 
   if (!recommendations.length) {
     recommendations.push(
-      "Continue narrative probes across settings; compare TTR/MLU at next administration for progress monitoring."
+      "Continue comparable sample types across sessions; track NDW, MLU (words), and contingency for progress monitoring."
     );
   }
 
@@ -470,10 +555,16 @@ function buildEngagement(
     clientTalkRatio,
     turnBalance,
     responseRate,
+    contingentResponses: responsesAfterQ,
+    contingentQuestions: therapistQs.length,
     meanResponseLatencySec,
     therapistQuestions: therapistQs.length,
     clientResponsesAfterQuestion: responsesAfterQ,
     initiativeTurns,
+    responseTurns,
+    initiativeRatio,
+    responseTurnRatio,
+    perseveration,
     narrative,
     highlights,
     recommendations,
@@ -482,7 +573,8 @@ function buildEngagement(
 
 export function analyzeSession(
   turns: TranscriptTurn[],
-  durationSec?: number
+  durationSec?: number,
+  sampleType?: LanguageSampleType
 ): SessionAnalysis {
   const lastEnd = turns.reduce((m, t) => Math.max(m, t.endSec), 0);
   const dur = durationSec && durationSec > 0 ? durationSec : lastEnd || 1;
@@ -496,7 +588,15 @@ export function analyzeSession(
     client,
     engagement,
     analyzedAt: new Date().toISOString(),
+    sampleType,
   };
+}
+
+export function sampleTypeLabel(t?: LanguageSampleType): string {
+  if (t === "narrative") return "Narrative";
+  if (t === "conversation") return "Conversation";
+  if (t === "routines") return "Routines";
+  return "Language sample";
 }
 
 /** Build turns from live recognition chunks with speaker labels. */

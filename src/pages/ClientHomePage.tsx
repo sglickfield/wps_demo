@@ -6,6 +6,7 @@ import {
   caseStatusLabel,
   formatDate,
 } from "../lib/format";
+import { sampleTypeLabel } from "../lib/sessionAnalytics";
 import { CLIENT_VOICES, THERAPIST_VOICE } from "../mock/sessionLibrary";
 import { useStore } from "../mock/store";
 
@@ -160,8 +161,10 @@ export function ClientHomePage() {
             <thead>
               <tr>
                 <th>Session</th>
+                <th>Type</th>
                 <th>Engagement</th>
-                <th>Client vocab</th>
+                <th>TNW / NDW / MLU</th>
+                <th>Contingency</th>
                 <th>Date</th>
               </tr>
             </thead>
@@ -175,13 +178,16 @@ export function ClientHomePage() {
                       {s.title}
                     </TextLink>
                     <div className="faint">
-                      {s.mode === "demo"
-                        ? "Demo sample"
-                        : s.mode === "live"
-                          ? "Live mic"
-                          : "Upload"}{" "}
-                      · {s.durationSec.toFixed(0)}s
+                      {s.durationSec.toFixed(0)}s
+                      {s.perseverationLevel !== "none"
+                        ? ` · perseveration ${s.perseverationLevel}`
+                        : ""}
                     </div>
+                  </td>
+                  <td>
+                    <Badge tone="info">
+                      {sampleTypeLabel(s.sampleType)}
+                    </Badge>
                   </td>
                   <td>
                     <Badge
@@ -197,16 +203,24 @@ export function ClientHomePage() {
                     </Badge>
                   </td>
                   <td>
-                    {s.clientWordCount} words · TTR{" "}
-                    {s.typeTokenRatio.toFixed(2)} · MLU{" "}
+                    TNW {s.clientWordCount} · NDW {s.clientUniqueWords} · MLU{" "}
                     {s.meanUtteranceLength.toFixed(1)}
+                  </td>
+                  <td>
+                    {s.contingentQuestions
+                      ? `${s.contingentResponses}/${s.contingentQuestions}`
+                      : "—"}
+                    <div className="faint">
+                      init {Math.round(s.initiativeRatio * 100)}% · lat{" "}
+                      {s.meanResponseLatencySec.toFixed(2)}s
+                    </div>
                   </td>
                   <td>{formatDate(s.createdAt)}</td>
                 </tr>
               ))}
               {!sessions.length ? (
                 <tr>
-                  <td colSpan={4} className="muted">
+                  <td colSpan={6} className="muted">
                     No session recordings yet. Run analytics for this client.
                   </td>
                 </tr>

@@ -46,7 +46,8 @@ export function createSeed(): {
       mrn: "NR-10442",
       school: "Oak Elementary",
       grade: "3",
-      notes: "Referral for social communication concerns.",
+      notes:
+        "Teacher referral: limited peer interaction at recess; emerging social communication. SRS-2 battery not yet sent. Language samples show brief, concrete responses with thin social detail.",
       createdAt: daysAgo(40),
     },
     {
@@ -57,7 +58,8 @@ export function createSeed(): {
       mrn: "NR-10891",
       school: "Cedar Middle",
       grade: "6",
-      notes: "Teacher and parent rating scales in progress.",
+      notes:
+        "IEP team multi-informant eval. Parent SRS-2 mild–moderate (completed). Teacher SRS-2 and ABAS-3 still outstanding. Verbally fluent in session with mild social friction in unstructured peer contexts.",
       createdAt: daysAgo(25),
     },
     {
@@ -68,7 +70,8 @@ export function createSeed(): {
       mrn: "NR-9912",
       school: "Oak Elementary",
       grade: "4",
-      notes: "SRS-2 battery scored.",
+      notes:
+        "Autism spectrum evaluation support. Multi-rater SRS-2 elevated and scored (parent/teacher broadly consistent). Language samples show restricted interests, weaker contingency, and repetitive phrasing.",
       createdAt: daysAgo(90),
     },
     {
@@ -79,7 +82,8 @@ export function createSeed(): {
       mrn: "NR-7721",
       school: "Willow Academy",
       grade: "7",
-      notes: "Two ABAS-3 administrations for progress monitoring.",
+      notes:
+        "Adaptive progress monitoring: ABAS-3 baseline below average (GAC ~79) with later gains (GAC ~87). Language samples track increasing multi-step daily-living and community independence narratives.",
       createdAt: daysAgo(400),
     },
   ];
@@ -92,7 +96,8 @@ export function createSeed(): {
       reason: "Teacher concerns about peer interaction",
       status: "draft",
       clinicianId: "clin-1",
-      openedAt: daysAgo(2),
+      // Opened before language samples (sessions at ~14/7/1 days) so chronology holds
+      openedAt: daysAgo(20),
       productCodes: ["SRS-2"],
     },
     {
@@ -110,8 +115,9 @@ export function createSeed(): {
       clientId: "cli-sam",
       title: "SRS-2 multi-rater battery",
       reason: "Autism spectrum evaluation support",
-      status: "scored",
+      status: "closed",
       clinicianId: "clin-1",
+      // Language samples at ~40/35/32 days sit inside this administration window
       openedAt: daysAgo(45),
       closedAt: daysAgo(30),
       productCodes: ["SRS-2"],
@@ -366,7 +372,8 @@ export function createSeed(): {
       startSec: Math.round(t.startSec * scale * 10) / 10,
       endSec: Math.round(t.endSec * scale * 10) / 10,
     }));
-    const analysis = analyzeSession(turns, durationSec);
+    const analysis = analyzeSession(turns, durationSec, def.sampleType);
+    const eng = analysis.engagement;
     return {
       id: def.id,
       clientId: def.clientId,
@@ -374,18 +381,25 @@ export function createSeed(): {
       mode: "demo" as const,
       createdAt: daysAgo(def.daysAgo),
       durationSec: analysis.durationSec,
-      engagementScore: analysis.engagement.engagementScore,
-      clientTalkRatio: analysis.engagement.clientTalkRatio,
-      clientWordCount: analysis.client.totalWords,
-      clientUniqueWords: analysis.client.uniqueWords,
+      engagementScore: eng.engagementScore,
+      clientTalkRatio: eng.clientTalkRatio,
+      clientWordCount: analysis.client.tnw,
+      clientUniqueWords: analysis.client.ndw,
       typeTokenRatio: analysis.client.typeTokenRatio,
       meanUtteranceLength: analysis.client.meanUtteranceLength,
-      narrative: analysis.engagement.narrative,
-      highlights: [
-        def.profileNote,
-        ...analysis.engagement.highlights,
-      ],
-      recommendations: analysis.engagement.recommendations,
+      contingentResponses: eng.contingentResponses,
+      contingentQuestions: eng.contingentQuestions,
+      meanResponseLatencySec: eng.meanResponseLatencySec,
+      initiativeTurns: eng.initiativeTurns,
+      responseTurns: eng.responseTurns,
+      initiativeRatio: eng.initiativeRatio,
+      perseverationLevel: eng.perseveration.level,
+      perseverationTopWord: eng.perseveration.topWord ?? undefined,
+      perseverationTopShare: eng.perseveration.topShare,
+      sampleType: def.sampleType,
+      narrative: eng.narrative,
+      highlights: [def.profileNote, ...eng.highlights],
+      recommendations: eng.recommendations,
       turns: analysis.turns.map((t) => ({
         id: t.id,
         speaker: t.speaker,

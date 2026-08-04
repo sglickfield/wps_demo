@@ -118,6 +118,13 @@ export interface SessionRecordingTurn {
   endSec: number;
 }
 
+export type LanguageSampleType =
+  | "narrative"
+  | "conversation"
+  | "routines";
+
+export type PerseverationLevel = "none" | "mild" | "elevated";
+
 export interface SessionRecording {
   id: string;
   clientId: string;
@@ -127,10 +134,23 @@ export interface SessionRecording {
   durationSec: number;
   engagementScore: number;
   clientTalkRatio: number;
+  /** TNW — total number of words */
   clientWordCount: number;
+  /** NDW — number of different words */
   clientUniqueWords: number;
   typeTokenRatio: number;
+  /** MLU in words (not morphemes) */
   meanUtteranceLength: number;
+  contingentResponses: number;
+  contingentQuestions: number;
+  meanResponseLatencySec: number;
+  initiativeTurns: number;
+  responseTurns: number;
+  initiativeRatio: number;
+  perseverationLevel: PerseverationLevel;
+  perseverationTopWord?: string;
+  perseverationTopShare: number;
+  sampleType?: LanguageSampleType;
   narrative: string;
   highlights: string[];
   recommendations: string[];
