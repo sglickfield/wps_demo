@@ -40,11 +40,18 @@ Route: `/session-analytics?clientId=<id>` (sidebar **Session analytics**).
 
 Analyses are **required to be tied to a client record** and are listed on that client’s home page.
 
-- **Demo session** — loads `public/samples/speech-therapy-session.wav` (two-voice speech-language sample), diarizes Therapist vs Client, runs vocabulary + engagement analysis entirely in the browser (Web Audio), saves to the client.
-- **Live mic** — Web Speech API (Chrome/Edge) with manual speaker toggle, then same metrics.
-- **Upload** — energy-based talk-spurt segmentation + alternating speaker labels (vocab limited without a transcript).
+Open a client-linked sample session to play the recording, view the diarized Therapist/Client transcript, and review vocabulary + engagement metrics (all in-browser).
 
-Seed data includes a sample session for **Maya Rivera** (`cli-maya`).
+Seed data includes **3 language-sample sessions per client** (12 total), each with:
+
+| Client | Client voice | Therapist voice | Profile-aligned pattern |
+|--------|--------------|-----------------|-------------------------|
+| Maya Rivera | Junior | Samantha | Emerging social language (referral) |
+| Jordan Kim | Fred | Samantha | Mild–moderate / fuller narratives |
+| Sam Torres | Kathy | Samantha | Elevated social-communication strain |
+| Alex Patel | Albert | Samantha | Adaptive progress (baseline → stronger) |
+
+Each client’s session page shows **only that client’s** recordings.
 
 All processing is client-side; no audio is uploaded to a server.
 

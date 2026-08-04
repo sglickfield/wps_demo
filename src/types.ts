@@ -135,4 +135,10 @@ export interface SessionRecording {
   highlights: string[];
   recommendations: string[];
   turns: SessionRecordingTurn[];
+  /** Browser-playable sample under /public/samples when available */
+  audioUrl?: string;
+  /** TTS voice labels for demo transparency */
+  therapistVoice?: string;
+  clientVoice?: string;
+  profileNote?: string;
 }

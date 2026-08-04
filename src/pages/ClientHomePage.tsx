@@ -6,6 +6,7 @@ import {
   caseStatusLabel,
   formatDate,
 } from "../lib/format";
+import { CLIENT_VOICES, THERAPIST_VOICE } from "../mock/sessionLibrary";
 import { useStore } from "../mock/store";
 
 export function ClientHomePage() {
@@ -149,8 +150,10 @@ export function ClientHomePage() {
           </Link>
         </div>
         <p className="muted" style={{ fontSize: 14, marginTop: 0 }}>
-          Browser language-sample analytics (Therapist / Client diarization,
-          vocabulary &amp; engagement) linked to this examinee.
+          Language samples for <strong>{client.name}</strong> only. Therapist
+          voice: {THERAPIST_VOICE}. Client voice:{" "}
+          {CLIENT_VOICES[client.id] ?? "—"}. Metrics align with this client&apos;s
+          rating profile (distinct from other examinees).
         </p>
         <div className="table-wrap">
           <table className="data">

@@ -70,16 +70,25 @@ export function DashboardPage() {
               Recording analytics (browser)
             </h2>
             <p className="muted" style={{ margin: "6px 0 0", fontSize: 14 }}>
-              Language-sample analytics are tied to a specific client record.
-              Demo seed includes a weekend narrative for Maya Rivera.
+              Each client has ≥3 seed voice sessions with a unique client voice
+              and metrics that match their rating profile.
             </p>
           </div>
           <div className="row-actions">
             <Link to="/session-analytics?clientId=cli-maya">
-              <Button>Maya — session analytics</Button>
+              <Button variant="secondary">Maya</Button>
+            </Link>
+            <Link to="/session-analytics?clientId=cli-jordan">
+              <Button variant="secondary">Jordan</Button>
+            </Link>
+            <Link to="/session-analytics?clientId=cli-sam">
+              <Button variant="secondary">Sam</Button>
+            </Link>
+            <Link to="/session-analytics?clientId=cli-alex">
+              <Button variant="secondary">Alex</Button>
             </Link>
             <Link to="/session-analytics">
-              <Button variant="secondary">Choose client</Button>
+              <Button>Choose client</Button>
             </Link>
           </div>
         </div>

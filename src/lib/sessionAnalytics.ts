@@ -321,11 +321,14 @@ function buildEngagement(
 
   // Ideal client talk share for language sample elicitation ~40–60%
   const talkScore = 100 - Math.abs(clientTalkRatio - 0.5) * 160;
-  // Lexical diversity: TTR around 0.45–0.7 is strong for short samples
-  const ttrScore = clamp(client.typeTokenRatio * 140, 0, 100);
-  // MLU (words): target ~6–12 for elementary narrative
-  const mluScore = clamp((client.meanUtteranceLength / 10) * 100, 0, 100);
-  // Responsiveness
+  // Short samples inflate TTR — prefer unique-word productivity for brief speech
+  const ttrScore =
+    client.totalWords < 55
+      ? clamp(client.uniqueWords * 3.2, 0, 100)
+      : clamp(client.typeTokenRatio * 130, 0, 100);
+  // MLU (words): target ~8–14 for solid narrative engagement
+  const mluScore = clamp((client.meanUtteranceLength / 12) * 100, 0, 100);
+  // Responsiveness to clinician questions
   const respScore = responseRate * 100;
   // Turn participation
   const turnScore = clamp(
@@ -333,14 +336,39 @@ function buildEngagement(
     0,
     100
   );
+  // Elaboration after questions (thin answers → lower engagement)
+  const afterQLens: number[] = [];
+  for (let i = 0; i < turns.length - 1; i++) {
+    const cur = turns[i];
+    const next = turns[i + 1];
+    if (
+      cur.speaker === "therapist" &&
+      isQuestion(cur.text) &&
+      next.speaker === "client"
+    ) {
+      afterQLens.push(tokenize(next.text).length);
+    }
+  }
+  const meanAfterQ = afterQLens.length
+    ? afterQLens.reduce((a, b) => a + b, 0) / afterQLens.length
+    : client.meanUtteranceLength;
+  const elabScore = clamp((meanAfterQ / 14) * 100, 0, 100);
+  // Perseveration: single content word dominates → social-communication strain
+  const topShare =
+    client.contentWordCount && client.topWords[0]
+      ? client.topWords[0].count / client.contentWordCount
+      : 0;
+  const persPenalty = topShare >= 0.18 ? 22 : topShare >= 0.12 ? 12 : 0;
 
   const engagementScore = Math.round(
     clamp(
-      talkScore * 0.25 +
-        ttrScore * 0.25 +
+      talkScore * 0.15 +
+        ttrScore * 0.15 +
         mluScore * 0.2 +
         respScore * 0.2 +
-        turnScore * 0.1,
+        turnScore * 0.1 +
+        elabScore * 0.2 -
+        persPenalty,
       0,
       100
     )

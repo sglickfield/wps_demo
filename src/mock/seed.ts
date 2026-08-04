@@ -6,8 +6,13 @@ import type {
   Report,
   SessionRecording,
 } from "../types";
-import { SAMPLE_SESSION_META, SAMPLE_TRANSCRIPT } from "./sampleSession";
 import { analyzeSession } from "../lib/sessionAnalytics";
+import {
+  ALL_SESSION_DEFS,
+  SESSION_DURATIONS,
+  audioUrlFor,
+  turnsWithEstimatedTiming,
+} from "./sessionLibrary";
 
 export const CLINICIAN: Clinician = {
   id: "clin-1",
@@ -344,37 +349,56 @@ export function createSeed(): {
     },
   ];
 
-  // Demo language-sample session tied to Maya Rivera
-  const demoAnalysis = analyzeSession(
-    SAMPLE_TRANSCRIPT,
-    SAMPLE_SESSION_META.durationSec
-  );
-  const sessionRecordings: SessionRecording[] = [
-    {
-      id: "sess-maya-weekend",
-      clientId: "cli-maya",
-      title: SAMPLE_SESSION_META.title,
-      mode: "demo",
-      createdAt: daysAgo(1),
-      durationSec: demoAnalysis.durationSec,
-      engagementScore: demoAnalysis.engagement.engagementScore,
-      clientTalkRatio: demoAnalysis.engagement.clientTalkRatio,
-      clientWordCount: demoAnalysis.client.totalWords,
-      clientUniqueWords: demoAnalysis.client.uniqueWords,
-      typeTokenRatio: demoAnalysis.client.typeTokenRatio,
-      meanUtteranceLength: demoAnalysis.client.meanUtteranceLength,
-      narrative: demoAnalysis.engagement.narrative,
-      highlights: demoAnalysis.engagement.highlights,
-      recommendations: demoAnalysis.engagement.recommendations,
-      turns: demoAnalysis.turns.map((t) => ({
+  // ≥3 language-sample sessions per client; voices + content match clinical profile
+  const sessionRecordings: SessionRecording[] = ALL_SESSION_DEFS.map((def) => {
+    const durationSec =
+      SESSION_DURATIONS[def.id] ??
+      turnsWithEstimatedTiming(def.turns).reduce(
+        (m, t) => Math.max(m, t.endSec),
+        0
+      );
+    const timed = turnsWithEstimatedTiming(def.turns);
+    // Scale estimated timings to real audio duration
+    const estEnd = timed.reduce((m, t) => Math.max(m, t.endSec), 1);
+    const scale = durationSec / estEnd;
+    const turns = timed.map((t) => ({
+      ...t,
+      startSec: Math.round(t.startSec * scale * 10) / 10,
+      endSec: Math.round(t.endSec * scale * 10) / 10,
+    }));
+    const analysis = analyzeSession(turns, durationSec);
+    return {
+      id: def.id,
+      clientId: def.clientId,
+      title: def.title,
+      mode: "demo" as const,
+      createdAt: daysAgo(def.daysAgo),
+      durationSec: analysis.durationSec,
+      engagementScore: analysis.engagement.engagementScore,
+      clientTalkRatio: analysis.engagement.clientTalkRatio,
+      clientWordCount: analysis.client.totalWords,
+      clientUniqueWords: analysis.client.uniqueWords,
+      typeTokenRatio: analysis.client.typeTokenRatio,
+      meanUtteranceLength: analysis.client.meanUtteranceLength,
+      narrative: analysis.engagement.narrative,
+      highlights: [
+        def.profileNote,
+        ...analysis.engagement.highlights,
+      ],
+      recommendations: analysis.engagement.recommendations,
+      turns: analysis.turns.map((t) => ({
         id: t.id,
         speaker: t.speaker,
         text: t.text,
         startSec: t.startSec,
         endSec: t.endSec,
       })),
-    },
-  ];
+      audioUrl: audioUrlFor(def),
+      therapistVoice: def.therapistVoice,
+      clientVoice: def.clientVoice,
+      profileNote: def.profileNote,
+    };
+  });
 
   return { clients, cases, forms, reports, sessionRecordings };
 }

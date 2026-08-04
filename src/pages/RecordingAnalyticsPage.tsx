@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Badge, Button, Card, Field, PageHeader, TextLink } from "../components/ui";
 import {
@@ -7,26 +7,24 @@ import {
   profileAudio,
   type AudioProfile,
 } from "../lib/audioAnalysis";
-import { ageFromDob, formatDate } from "../lib/format";
+import { ageFromDob } from "../lib/format";
 import {
   analyzeSession,
-  turnsFromLiveChunks,
   type SessionAnalysis,
 } from "../lib/sessionAnalytics";
+import type { SpeakerRole, TranscriptTurn } from "../mock/sampleSession";
 import {
-  LiveSessionRecognizer,
-  speechRecognitionSupported,
-} from "../lib/webSpeech";
-import {
-  SAMPLE_SESSION_META,
-  SAMPLE_TRANSCRIPT,
-  type SpeakerRole,
-  type TranscriptTurn,
-} from "../mock/sampleSession";
+  CLIENT_VOICES,
+  THERAPIST_VOICE,
+  audioUrlFor,
+  getSessionDef,
+  sessionsForClientDef,
+  turnsWithEstimatedTiming,
+  SESSION_DURATIONS,
+} from "../mock/sessionLibrary";
 import { useStore } from "../mock/store";
-import type { SessionRecording, SessionRecordingMode } from "../types";
+import type { SessionRecording } from "../types";
 
-type Mode = SessionRecordingMode;
 type Phase = "idle" | "loading" | "ready" | "analyzing" | "done" | "error";
 
 function pct(n: number): string {
@@ -173,7 +171,6 @@ export function RecordingAnalyticsPage() {
   const client = clientId ? getClient(clientId) : undefined;
 
   const [pickerId, setPickerId] = useState(clients[0]?.id ?? "");
-  const [mode, setMode] = useState<Mode>("demo");
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<AudioProfile | null>(null);
@@ -181,9 +178,6 @@ export function RecordingAnalyticsPage() {
   const [analysis, setAnalysis] = useState<SessionAnalysis | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [liveSpeaker, setLiveSpeaker] = useState<SpeakerRole>("therapist");
-  const [liveStatus, setLiveStatus] = useState<string>("Ready");
-  const [interim, setInterim] = useState("");
   const [spurtLabels, setSpurtLabels] = useState<
     { startSec: number; endSec: number; speaker: SpeakerRole }[]
   >([]);
@@ -191,27 +185,6 @@ export function RecordingAnalyticsPage() {
   const [saving, setSaving] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const recognizerRef = useRef<LiveSessionRecognizer | null>(null);
-  const liveChunksRef = useRef<
-    { speaker: SpeakerRole; text: string; startSec: number; endSec: number }[]
-  >([]);
-  const liveStartedAt = useRef<number>(0);
-  const objectUrlRef = useRef<string | null>(null);
-  const modeRef = useRef<Mode>("demo");
-
-  const speechOk = useMemo(() => speechRecognitionSupported(), []);
-  const clientSessions = clientId ? sessionsForClient(clientId) : [];
-
-  useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
-
-  useEffect(() => {
-    return () => {
-      recognizerRef.current?.stop();
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    };
-  }, []);
 
   // Load a previously saved session when sessionId is present
   useEffect(() => {
@@ -222,7 +195,6 @@ export function RecordingAnalyticsPage() {
       return;
     }
     setSavedRec(rec);
-    setMode(rec.mode);
     const result = analysisFromSaved(rec);
     setAnalysis(result);
     setTurns(result.turns);
@@ -250,27 +222,21 @@ export function RecordingAnalyticsPage() {
         meanEnergy: 0.5,
       })),
     });
-    if (rec.mode === "demo") {
-      setAudioUrl(SAMPLE_SESSION_META.audioUrl);
+    if (rec.audioUrl) {
+      setAudioUrl(rec.audioUrl);
     }
     setPhase("done");
   }, [sessionIdParam, client, getSessionRecording]);
 
   const persistAnalysis = useCallback(
-    async (result: SessionAnalysis, analysisMode: Mode) => {
+    async (result: SessionAnalysis, title: string) => {
       if (!client) return;
       setSaving(true);
       try {
-        const title =
-          analysisMode === "demo"
-            ? SAMPLE_SESSION_META.title
-            : analysisMode === "live"
-              ? `Live session — ${formatDate(new Date().toISOString())}`
-              : `Uploaded session — ${formatDate(new Date().toISOString())}`;
         const rec = await saveSessionRecording({
           clientId: client.id,
           title,
-          mode: analysisMode,
+          mode: "demo",
           analysis: result,
         });
         setSavedRec(rec);
@@ -286,171 +252,73 @@ export function RecordingAnalyticsPage() {
   );
 
   const runAnalysis = useCallback(
-    (sessionTurns: TranscriptTurn[], durationSec: number) => {
+    (
+      sessionTurns: TranscriptTurn[],
+      durationSec: number,
+      opts?: { save?: boolean; title?: string }
+    ) => {
       setPhase("analyzing");
-      setSavedRec(null);
+      const shouldSave = opts?.save !== false;
+      if (shouldSave) setSavedRec(null);
       window.setTimeout(() => {
         const result = analyzeSession(sessionTurns, durationSec);
         setAnalysis(result);
         setTurns(sessionTurns);
         setPhase("done");
-        void persistAnalysis(result, modeRef.current);
+        if (shouldSave && opts?.title) {
+          void persistAnalysis(result, opts.title);
+        }
       }, 350);
     },
     [persistAnalysis]
   );
 
-  const loadDemo = async () => {
-    setError(null);
-    setPhase("loading");
-    setAnalysis(null);
-    setMode("demo");
-    try {
-      const { buffer, ctx } = await decodeAudioFile(SAMPLE_SESSION_META.audioUrl);
-      const prof = profileAudio(buffer);
-      const labels = labelSpurtsAlternating(prof.spurts, "therapist");
-      setProfile(prof);
-      setSpurtLabels(labels);
-      setAudioUrl(SAMPLE_SESSION_META.audioUrl);
-      setTurns(SAMPLE_TRANSCRIPT);
-      setPhase("ready");
-      await ctx.close().catch(() => undefined);
-      runAnalysis(SAMPLE_TRANSCRIPT, prof.durationSec || SAMPLE_SESSION_META.durationSec);
-    } catch (e) {
-      setPhase("error");
-      setError(e instanceof Error ? e.message : "Could not load demo audio");
+  const loadClientSample = async (sessionDefId: string) => {
+    if (!client) return;
+    const def = getSessionDef(sessionDefId);
+    if (!def || def.clientId !== client.id) {
+      setError("Sample session not found for this client.");
+      return;
     }
-  };
-
-  const onUpload = async (file: File | null) => {
-    if (!file) return;
+    // Prefer opening the seed recording already on the client record
+    const existing = sessionsForClient(client.id).find((s) => s.id === def.id);
+    if (existing) {
+      setSearchParams(
+        { clientId: client.id, sessionId: existing.id },
+        { replace: true }
+      );
+      return;
+    }
     setError(null);
     setPhase("loading");
     setAnalysis(null);
-    setMode("upload");
-    setTurns([]);
     try {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-      const url = URL.createObjectURL(file);
-      objectUrlRef.current = url;
-      setAudioUrl(url);
-      const data = await file.arrayBuffer();
-      const { buffer, ctx } = await decodeAudioFile(data);
+      const url = audioUrlFor(def);
+      const { buffer, ctx } = await decodeAudioFile(url);
       const prof = profileAudio(buffer);
       const labels = labelSpurtsAlternating(prof.spurts, "therapist");
-      setProfile(prof);
-      setSpurtLabels(labels);
-      // Without ASR on arbitrary files, synthesize placeholder turns from spurts
-      // so engagement timing still runs; vocabulary needs live/demo transcript.
-      const synthetic: TranscriptTurn[] = labels.map((l, i) => ({
-        id: `up-${i}`,
-        speaker: l.speaker,
-        text:
-          l.speaker === "therapist"
-            ? `(Therapist segment ${i + 1} — upload transcription not available offline)`
-            : `(Client segment ${i + 1} — upload transcription not available offline)`,
-        startSec: l.startSec,
-        endSec: l.endSec,
+      const timed = turnsWithEstimatedTiming(def.turns);
+      const estEnd = timed.reduce((m, t) => Math.max(m, t.endSec), 1);
+      const scale = (SESSION_DURATIONS[def.id] ?? prof.durationSec) / estEnd;
+      const sessionTurns = timed.map((t) => ({
+        ...t,
+        startSec: Math.round(t.startSec * scale * 10) / 10,
+        endSec: Math.round(t.endSec * scale * 10) / 10,
       }));
-      setTurns(synthetic);
+      setProfile(prof);
+      setSpurtLabels(labels);
+      setAudioUrl(url);
+      setTurns(sessionTurns);
       setPhase("ready");
       await ctx.close().catch(() => undefined);
-      // Only full vocab analysis when we have real words; still compute timing
-      runAnalysis(synthetic, prof.durationSec);
+      runAnalysis(sessionTurns, prof.durationSec, {
+        save: true,
+        title: def.title,
+      });
     } catch (e) {
       setPhase("error");
-      setError(e instanceof Error ? e.message : "Could not decode audio file");
+      setError(e instanceof Error ? e.message : "Could not load sample audio");
     }
-  };
-
-  const startLive = () => {
-    if (!speechOk) {
-      setError("Live transcription requires Chrome or Edge with microphone access.");
-      return;
-    }
-    setMode("live");
-    setError(null);
-    setAnalysis(null);
-    setProfile(null);
-    setSpurtLabels([]);
-    setAudioUrl(null);
-    setTurns([]);
-    liveChunksRef.current = [];
-    liveStartedAt.current = performance.now();
-    setInterim("");
-    setLiveStatus("Listening…");
-    setPhase("ready");
-
-    recognizerRef.current?.stop();
-    recognizerRef.current = new LiveSessionRecognizer(
-      ({ transcript, isFinal }) => {
-        if (!isFinal) {
-          setInterim(transcript);
-          return;
-        }
-        setInterim("");
-        const now = (performance.now() - liveStartedAt.current) / 1000;
-        const text = transcript.trim();
-        if (!text) return;
-        const prev = liveChunksRef.current[liveChunksRef.current.length - 1];
-        const startSec = prev ? prev.endSec + 0.15 : Math.max(0, now - 2);
-        const chunk = {
-          speaker: liveSpeaker,
-          text,
-          startSec,
-          endSec: Math.max(startSec + 0.5, now),
-        };
-        liveChunksRef.current = [...liveChunksRef.current, chunk];
-        setTurns(turnsFromLiveChunks(liveChunksRef.current));
-      },
-      (status, detail) => {
-        if (status === "listening") setLiveStatus("Listening…");
-        else if (status === "stopped") setLiveStatus("Stopped");
-        else setLiveStatus(detail ? `Error: ${detail}` : "Error");
-      }
-    );
-    recognizerRef.current.start();
-  };
-
-  const stopLiveAndAnalyze = () => {
-    recognizerRef.current?.stop();
-    setLiveStatus("Stopped");
-    const sessionTurns = turnsFromLiveChunks(liveChunksRef.current);
-    if (!sessionTurns.length) {
-      setError("No final speech captured. Try again and speak clearly.");
-      setPhase("error");
-      return;
-    }
-    const durationSec = Math.max(
-      ...sessionTurns.map((t) => t.endSec),
-      (performance.now() - liveStartedAt.current) / 1000
-    );
-    setSpurtLabels(
-      sessionTurns.map((t) => ({
-        startSec: t.startSec,
-        endSec: t.endSec,
-        speaker: t.speaker,
-      }))
-    );
-    // Minimal waveform from turn activity
-    const points = 120;
-    const wave = Array.from({ length: points }, (_, i) => {
-      const t = (i / points) * durationSec;
-      const hit = sessionTurns.some((x) => t >= x.startSec && t <= x.endSec);
-      return hit ? 0.55 + (i % 7) * 0.04 : 0.05;
-    });
-    setProfile({
-      durationSec,
-      sampleRate: 0,
-      waveform: wave,
-      energy: [],
-      spurts: sessionTurns.map((t) => ({
-        startSec: t.startSec,
-        endSec: t.endSec,
-        meanEnergy: 0.5,
-      })),
-    });
-    runAnalysis(sessionTurns, durationSec);
   };
 
   // Require a specific client before analysis
@@ -512,6 +380,9 @@ export function RecordingAnalyticsPage() {
     );
   }
 
+  const clientVoice = CLIENT_VOICES[client.id] ?? "Client voice";
+  const sampleDefs = sessionsForClientDef(client.id);
+
   return (
     <>
       <PageHeader
@@ -530,145 +401,62 @@ export function RecordingAnalyticsPage() {
       />
 
       <Card>
-        <div className="analytics-intro">
-          <div>
-            <h2 style={{ fontSize: "1.1rem", marginBottom: 6 }}>
-              Client-linked session
-            </h2>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-              Analyses are saved to <strong>{client.name}</strong>
-              {client.mrn ? ` (${client.mrn})` : ""}. Browser-only processing
-              (Web Audio + optional Web Speech). Speaker roles:{" "}
-              <strong>Therapist</strong> and <strong>Client</strong>.
+        <div>
+          <h2 style={{ fontSize: "1.1rem", marginBottom: 6 }}>
+            {client.name} — voice sessions only
+          </h2>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+            This page lists <strong>only</strong> recordings for{" "}
+            <strong>{client.name}</strong>
+            {client.mrn ? ` (${client.mrn})` : ""}. Voices: therapist{" "}
+            <strong>{THERAPIST_VOICE}</strong>, client{" "}
+            <strong>{clientVoice}</strong> (unique to this examinee).
+          </p>
+          {client.notes ? (
+            <p className="faint" style={{ margin: "8px 0 0" }}>
+              Chart note: {client.notes}
             </p>
-          </div>
-          <div>
-            <p className="faint" style={{ margin: "0 0 6px" }}>
-              Prior sessions for this client
-            </p>
-            {clientSessions.length ? (
-              <ul className="analytics-list" style={{ margin: 0 }}>
-                {clientSessions.slice(0, 4).map((s) => (
-                  <li key={s.id}>
-                    <TextLink
-                      to={`/session-analytics?clientId=${client.id}&sessionId=${s.id}`}
-                    >
-                      {s.title}
-                    </TextLink>
-                    <span className="faint">
-                      {" "}
-                      · engagement {s.engagementScore}/100 ·{" "}
-                      {formatDate(s.createdAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="faint" style={{ margin: 0 }}>
-                No saved sessions yet.
-              </p>
-            )}
-          </div>
+          ) : null}
         </div>
 
-        <div className="mode-tabs" role="tablist">
-          <button
-            type="button"
-            className={mode === "demo" ? "active" : ""}
-            onClick={() => setMode("demo")}
+        <div className="stack" style={{ marginTop: 12 }}>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+            Sample language recordings for <strong>{client.name}</strong> only
+            (voice <strong>{clientVoice}</strong>). Content and metrics align
+            with this client&apos;s rating profile.
+          </p>
+          <div
+            className="row-actions"
+            style={{ flexDirection: "column", alignItems: "stretch" }}
           >
-            Demo session
-          </button>
-          <button
-            type="button"
-            className={mode === "live" ? "active" : ""}
-            onClick={() => setMode("live")}
-          >
-            Live mic
-          </button>
-          <button
-            type="button"
-            className={mode === "upload" ? "active" : ""}
-            onClick={() => setMode("upload")}
-          >
-            Upload audio
-          </button>
+            {sampleDefs.map((def) => (
+              <div
+                key={def.id}
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 0",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 14 }}>{def.title}</strong>
+                  <div className="faint">{def.profileNote}</div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => loadClientSample(def.id)}
+                  disabled={phase === "loading" || phase === "analyzing"}
+                >
+                  Open
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
-
-        {mode === "demo" ? (
-          <div className="stack" style={{ marginTop: 12 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-              <strong>{SAMPLE_SESSION_META.title}.</strong>{" "}
-              {SAMPLE_SESSION_META.description} {SAMPLE_SESSION_META.sourceNote}
-            </p>
-            <div className="row-actions">
-              <Button onClick={loadDemo} disabled={phase === "loading" || phase === "analyzing"}>
-                {phase === "loading"
-                  ? "Loading audio…"
-                  : phase === "analyzing"
-                    ? "Analyzing…"
-                    : "Load & analyze demo session"}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {mode === "live" ? (
-          <div className="stack" style={{ marginTop: 12 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-              Capture a short two-person session on this device. Toggle the active
-              speaker as each person talks; finals are diarized and analyzed for
-              the client role. {speechOk ? null : (
-                <span className="badge danger" style={{ marginLeft: 6 }}>
-                  Web Speech unavailable
-                </span>
-              )}
-            </p>
-            <div className="row-actions" style={{ alignItems: "center" }}>
-              <span className="faint">Active speaker:</span>
-              <Button
-                variant={liveSpeaker === "therapist" ? "primary" : "secondary"}
-                onClick={() => setLiveSpeaker("therapist")}
-              >
-                Therapist
-              </Button>
-              <Button
-                variant={liveSpeaker === "client" ? "primary" : "secondary"}
-                onClick={() => setLiveSpeaker("client")}
-              >
-                Client
-              </Button>
-              <Button onClick={startLive} disabled={!speechOk}>
-                Start listening
-              </Button>
-              <Button variant="secondary" onClick={stopLiveAndAnalyze}>
-                Stop & analyze
-              </Button>
-              <Badge tone="info">{liveStatus}</Badge>
-            </div>
-            {interim ? (
-              <p className="faint" style={{ fontStyle: "italic" }}>
-                Interim: {interim}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {mode === "upload" ? (
-          <div className="stack" style={{ marginTop: 12 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-              Upload a mono recording with two speakers. Browser energy VAD
-              segments talk spurts and alternates Therapist → Client labels.
-              Full vocabulary scoring needs the demo transcript or live
-              recognition (file ASR is not bundled).
-            </p>
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={(e) => onUpload(e.target.files?.[0] ?? null)}
-            />
-          </div>
-        ) : null}
 
         {error ? (
           <p style={{ color: "var(--danger)", marginTop: 12, marginBottom: 0 }}>
@@ -714,13 +502,18 @@ export function RecordingAnalyticsPage() {
           <p className="faint" style={{ marginTop: 8, marginBottom: 0 }}>
             Duration{" "}
             {(profile?.durationSec ?? analysis?.durationSec ?? 0).toFixed(1)}s
-            {` · Linked client: ${client.name}`}
+            {` · Client: ${client.name} · Voices: ${THERAPIST_VOICE} / ${
+              savedRec?.clientVoice ?? clientVoice
+            }`}
             {phase === "analyzing" ? " · Running analytics…" : null}
             {saving ? " · Saving to client record…" : null}
-            {savedRec && !saving
-              ? ` · Saved as ${savedRec.id}`
-              : null}
+            {savedRec && !saving ? ` · Session ${savedRec.id}` : null}
           </p>
+          {savedRec?.profileNote ? (
+            <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
+              Profile alignment: {savedRec.profileNote}
+            </p>
+          ) : null}
         </Card>
       ) : null}
 
@@ -834,8 +627,7 @@ export function RecordingAnalyticsPage() {
                 </div>
               ) : (
                 <p className="faint" style={{ marginTop: 12 }}>
-                  Vocabulary list populates when a real transcript is available
-                  (demo or live mic).
+                  Vocabulary list populates when a transcript is available.
                 </p>
               )}
             </Card>
